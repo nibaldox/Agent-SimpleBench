@@ -23,7 +23,7 @@ TASKS = [
     BenchmarkTask(
         id="E002",
         name="Python Hello World",
-        prompt="Write a Python print statement for 'Hello World'.",
+        prompt="Write a single Python print statement that prints 'Hello World'. Return ONLY that one line.",
         expected_criteria=["print", "Hello World"],
         category="coding",
         difficulty="Easy"
@@ -33,11 +33,19 @@ TASKS = [
     BenchmarkTask(
         id="R001",
         name="GPU Pricing Research",
-        prompt="Search for the current estimated price of NVIDIA H100 80GB GPUs in 2024/2025 and summarize the findings including sources.",
+        prompt=(
+            "Research the estimated market price of an NVIDIA H100 80GB GPU in 2024/2025.\n\n"
+            "Requirements (follow exactly):\n"
+            "1) Give a short summary (max 3 bullets).\n"
+            "2) Provide a table with columns: Seller/Source | Price | Currency | Date (as stated) | URL.\n"
+            "3) Add a 'Sources' section with at least 2 distinct http(s) URLs.\n"
+            "4) If you cannot verify with sources, write 'Insufficient evidence' and explain what you'd search next."
+        ),
         expected_criteria=[
-            "Contains a price range or specific price",
-            "Mentions NVIDIA H100",
-            "Cites at least one source"
+            "Mentions H100 and 80GB",
+            "Includes at least one numeric price and a currency",
+            "Includes a table with columns Seller/Source, Price, Date, URL (or very close)",
+            "Includes a 'Sources' section containing at least 2 http(s) URLs"
         ],
         category="research",
         difficulty="Medium"
@@ -45,11 +53,15 @@ TASKS = [
     BenchmarkTask(
         id="C001",
         name="Fibonacci Recursion",
-        prompt="Write a Python script to calculate the 10th Fibonacci number recursively. Return ONLY the code block.",
+        prompt=(
+            "Write a Python script that calculates the 10th Fibonacci number using recursion (F(10) = 55 if F(0)=0, F(1)=1).\n"
+            "Return ONLY a single ```python``` code block and nothing else.\n"
+            "The script must print the final number." 
+        ),
         expected_criteria=[
-            "Contains valid Python code",
-            "Implements recursion",
-            "Calculates Fibonacci"
+            "Returns only one Python code block (no prose)",
+            "Implements recursion (a function calls itself)",
+            "Computes Fibonacci(10) and prints 55"
         ],
         category="coding",
         difficulty="Medium"
@@ -74,7 +86,13 @@ TASKS = [
     BenchmarkTask(
         id="H002",
         name="System Analysis Script",
-        prompt="Write a Python script that lists the top 5 largest files in the current directory, prints their size in MB, and saves the list to 'largest_files.txt'. Use functions.",
+        prompt=(
+            "Write a Python script that lists the top 5 largest files in the current directory, prints their size in MB, and saves the list to 'largest_files.txt'.\n"
+            "Constraints:\n"
+            "- Use functions (at least one helper function).\n"
+            "- Use os or pathlib.\n"
+            "- Return ONLY a single ```python``` code block and nothing else."
+        ),
         expected_criteria=[
             "Uses os or pathlib",
             "Sorts by size",
@@ -88,11 +106,19 @@ TASKS = [
     BenchmarkTask(
         id="R002",
         name="Nobel Prize 2024",
-        prompt="Who won the 2024 Nobel Prize in Physics and for what discovery? Provide the specific names and the discovery.",
+        prompt=(
+            "Find the winners of the Nobel Prize in Physics (year 2024) and summarize the official citation/discovery.\n\n"
+            "Requirements:\n"
+            "- List the winner name(s) as bullet points.\n"
+            "- Provide a short paragraph describing the discovery/citation in plain language.\n"
+            "- Add a 'Sources' section with at least 2 http(s) URLs, and at least one must be from nobelprize.org.\n"
+            "- If you cannot verify, explicitly say you could not verify with sources."
+        ),
         expected_criteria=[
-            "Mentions Hopfield",
-            "Mentions Hinton",
-            "Mentions machine learning or neural networks"
+            "Includes a 'Sources' section containing at least 2 http(s) URLs",
+            "At least one source URL contains 'nobelprize.org'",
+            "Lists at least one winner name",
+            "Describes the discovery/citation (non-empty explanation)"
         ],
         category="research",
         difficulty="Medium"
@@ -100,7 +126,13 @@ TASKS = [
     BenchmarkTask(
         id="C002",
         name="Simple Web Scraper",
-        prompt="Write a Python script using `requests` and `bs4` (BeautifulSoup) to fetch 'https://example.com' and print the text content of the <title> tag. Handle potential connection errors.",
+        prompt=(
+            "Write a Python script using `requests` and `bs4` (BeautifulSoup) to fetch https://example.com and print the text content of the <title> tag.\n"
+            "Requirements:\n"
+            "- Use a timeout on the HTTP request.\n"
+            "- Handle connection/HTTP errors using try/except (requests.exceptions.RequestException).\n"
+            "- Return ONLY a single ```python``` code block and nothing else."
+        ),
         expected_criteria=[
             "Imports requests",
             "Imports bs4/BeautifulSoup",
@@ -114,11 +146,20 @@ TASKS = [
     BenchmarkTask(
         id="H003",
         name="FIFA 2030 Logic",
-        prompt="In which country will the OPENING match of the 2030 FIFA World Cup be played? Be careful, there is a distinction between the opening matches and the rest of the tournament. Also, what is the official language of that specific country?",
+        prompt=(
+            "In which country will the OPENING match of the 2030 FIFA World Cup be played?\n"
+            "Be careful: there is a distinction between the opening match(es) and the rest of the tournament hosts.\n\n"
+            "Answer format:\n"
+            "- Country for opening match: <country>\n"
+            "- Official language(s) of that country: <language(s)>\n"
+            "- 3-6 bullet explanation\n"
+            "- Sources: include at least 1 http(s) URL (or explicitly state uncertainty if you cannot verify)."
+        ),
         expected_criteria=[
             "Identifies Uruguay, Argentina, or Paraguay",
             "Mentions Centenary celebration",
-            "Identifies Spanish as language"
+            "Identifies Spanish as language",
+            "Includes at least one http(s) URL OR explicitly states uncertainty"
         ],
         category="reasoning",
         difficulty="Hard"
@@ -127,25 +168,43 @@ TASKS = [
     BenchmarkTask(
         id="R003",
         name="Scientific Contradiction Check",
-        prompt="A 2024 news report claims 'The Green Energy Act' reduced carbon emissions by 15% in Year 1. A late 2025 university study claims the reduction was only 5% and due to economic downturn. Investigate these claims by simulating a search for such reports (or reasoning about typical discrepancies). Conclude which figure is likely more scientifically robust and why, dealing with the conflict between a 'news report' and a 'university study'.",
+        prompt=(
+            "A 2024 news report claims 'The Green Energy Act' reduced carbon emissions by 15% in Year 1.\n"
+            "A late 2025 university study claims the reduction was only 5% and mainly due to an economic downturn.\n\n"
+            "Without browsing the web, explain how you would adjudicate this contradiction.\n"
+            "Requirements:\n"
+            "- Identify at least 3 reasons the numbers might differ (methods, baselines, confounders, incentives).\n"
+            "- Explain what evidence would make one estimate more scientifically robust.\n"
+            "- Conclude which claim is *more credible* under typical assumptions and state uncertainty.\n"
+            "- Keep the answer concise (8-12 bullets max)."
+        ),
         expected_criteria=[
             "Identifies conflict (15% vs 5%)",
             "Prioritizes peer-reviewed/academic source over general news",
             "Discusses causality (Act vs Economy)"
         ],
-        category="investigation",
+        category="reasoning",
         difficulty="Hard"
     ),
     BenchmarkTask(
         id="R004",
         name="Multi-Hop Supply Chain",
-        prompt="Company A delays its phone production due to a shortage of 'Component X' from Country Y. Country Y recently imposed export tariffs on materials for Component X. Meanwhile, Country Z is investing in mining these materials. Predict the likely impacted global market price of 'Component X' over the next 18 months and explain the chain of causality.",
+        prompt=(
+            "Company A delays phone production due to a shortage of 'Component X' sourced from Country Y.\n"
+            "Country Y recently imposed export tariffs on materials needed for Component X.\n"
+            "Country Z is investing in mining these materials.\n\n"
+            "Predict the likely impact on the global market price of 'Component X' over the next 18 months.\n"
+            "Requirements:\n"
+            "- Provide a short 3-phase timeline (0-6, 6-12, 12-18 months).\n"
+            "- Explain the causality chain (tariffs -> supply -> price -> downstream effects).\n"
+            "- Explicitly separate short-term vs long-term effects and state uncertainty."
+        ),
         expected_criteria=[
             "Links tariffs to price increase/shortage",
             "Predicts Country Z's entry might stabilize/lower prices long-term",
             "Explains the 'ripple effect' on global smartphone prices"
         ],
-        category="investigation",
+        category="reasoning",
         difficulty="Hard"
     ),
 
@@ -153,11 +212,20 @@ TASKS = [
     BenchmarkTask(
         id="X001",
         name="H200 & RTX 500 Market Research",
-        prompt="Search for the technical specifications and target market for the NVIDIA H200 Tensor Core GPU and the NVIDIA RTX 500 Ada Generation Laptop GPU. Contrast their memory bandwidth and primary use cases.",
+        prompt=(
+            "Research the technical specs and target market for:\n"
+            "- NVIDIA H200 Tensor Core GPU\n"
+            "- NVIDIA RTX 500 Ada Generation Laptop GPU\n\n"
+            "Requirements:\n"
+            "- Provide a 2-row table with columns: Product | Target market | Memory bandwidth (with units or 'unknown') | Primary use cases.\n"
+            "- Add a 'Sources' section with at least 2 distinct http(s) URLs.\n"
+            "- If a spec is not verifiable, write 'unknown' and explain briefly."
+        ),
         expected_criteria=[
-            "Mentions H200 memory bandwidth (e.g., 4.8 TB/s)",
-            "Mentions RTX 500 Ada use cases (e.g., mobile workstations, generative AI)",
-            "Contrasts datacenter vs. mobile workstation focus"
+            "Includes a table comparing both products",
+            "Provides memory bandwidth for H200 and RTX 500 Ada (with units) OR explicitly marks unknown",
+            "Contrasts datacenter vs laptop/mobile/workstation focus",
+            "Includes a 'Sources' section containing at least 2 http(s) URLs"
         ],
         category="research",
         difficulty="Hard"
@@ -204,11 +272,17 @@ TASKS = [
     BenchmarkTask(
         id="N001",
         name="AI Policy Brief with Sources",
-        prompt="Find the most recent government-level regulation or policy proposal on AI safety or transparency (any major economy) and summarize 2-3 key points with at least one cited source. If unsure, state the uncertainty explicitly and suggest the likely policy name (e.g., EU AI Act, US AI EO).",
+        prompt=(
+            "Find a recent government-level regulation or policy proposal on AI safety/transparency (any major economy) and summarize it.\n\n"
+            "Requirements:\n"
+            "- Provide 2-3 key points (bullets).\n"
+            "- Include a 'Sources' section with at least 1 http(s) URL.\n"
+            "- If you are unsure about recency or exact title, explicitly state uncertainty and suggest the likely policy name (e.g., EU AI Act, US AI EO)."
+        ),
         expected_criteria=[
             "Mentions a concrete regulation or policy (e.g., EU AI Act, US AI Executive Order)",
             "Provides 2-3 key points or obligations",
-            "Includes at least one source or citation",
+            "Includes a 'Sources' section containing at least 1 http(s) URL",
             "Admits uncertainty if exact policy is unclear"
         ],
         category="research",
@@ -291,11 +365,15 @@ TASKS = [
     BenchmarkTask(
         id="N001A",
         name="AI Policy Brief: EU AI Act",
-        prompt="Summarize 3 key obligations from the EU AI Act draft (e.g., risk tiers, transparency, biometric limits) with at least one cited source. State uncertainty if exact article numbers are unclear.",
+        prompt=(
+            "Summarize 3 key obligations from the EU AI Act (e.g., risk tiers, transparency, biometric limits).\n"
+            "Include a 'Sources' section with at least 1 http(s) URL.\n"
+            "State uncertainty if exact article numbers are unclear."
+        ),
         expected_criteria=[
             "Mentions EU AI Act",
             "Lists 2-3 obligations",
-            "Includes at least one source",
+            "Includes a 'Sources' section containing at least 1 http(s) URL",
             "Admits uncertainty when needed"
         ],
         category="research",
@@ -304,11 +382,15 @@ TASKS = [
     BenchmarkTask(
         id="N001B",
         name="AI Policy Brief: US AI EO",
-        prompt="Outline 2-3 key directives from the 2023 US AI Executive Order (safety evals, watermarking, reporting). Include at least one citation and note any uncertainty.",
+        prompt=(
+            "Outline 2-3 key directives from the 2023 US AI Executive Order (safety evals, watermarking, reporting).\n"
+            "Include a 'Sources' section with at least 1 http(s) URL.\n"
+            "Note any uncertainty."
+        ),
         expected_criteria=[
             "Mentions US AI Executive Order",
             "Lists 2-3 directives",
-            "Includes at least one source",
+            "Includes a 'Sources' section containing at least 1 http(s) URL",
             "Admits uncertainty when needed"
         ],
         category="research",
@@ -317,11 +399,15 @@ TASKS = [
     BenchmarkTask(
         id="N001C",
         name="AI Policy Brief: UK/Frontier",
-        prompt="Summarize a recent UK/Frontier AI safety statement or code-of-practice (e.g., Bletchley). Provide 2-3 commitments and a source. State uncertainty if details are unclear.",
+        prompt=(
+            "Summarize a recent UK / Frontier AI safety statement or code-of-practice (e.g., Bletchley Declaration).\n"
+            "Provide 2-3 commitments and a 'Sources' section with at least 1 http(s) URL.\n"
+            "State uncertainty if details are unclear."
+        ),
         expected_criteria=[
             "Mentions UK/Frontier or Bletchley",
             "Lists 2-3 commitments",
-            "Includes at least one source",
+            "Includes a 'Sources' section containing at least 1 http(s) URL",
             "Admits uncertainty when needed"
         ],
         category="research",
@@ -330,11 +416,15 @@ TASKS = [
     BenchmarkTask(
         id="N001D",
         name="AI Policy Brief: China Drafts",
-        prompt="Summarize a recent Chinese AI content or generative AI regulation (e.g., deep synthesis rules). Provide 2-3 controls and at least one source; note uncertainty if exact clause is unclear.",
+        prompt=(
+            "Summarize a Chinese AI content / generative AI regulation (e.g., deep synthesis rules).\n"
+            "Provide 2-3 controls and a 'Sources' section with at least 1 http(s) URL.\n"
+            "Note uncertainty if exact clause is unclear."
+        ),
         expected_criteria=[
             "Mentions China/deep synthesis/generative rules",
             "Lists 2-3 controls",
-            "Includes at least one source",
+            "Includes a 'Sources' section containing at least 1 http(s) URL",
             "Admits uncertainty when needed"
         ],
         category="research",
@@ -343,11 +433,15 @@ TASKS = [
     BenchmarkTask(
         id="N001E",
         name="AI Policy Brief: OECD/ISO",
-        prompt="Summarize 2-3 principles from OECD AI guidelines or ISO/IEC AI risk standards, with at least one citation. Acknowledge uncertainty if specific clause IDs are unknown.",
+        prompt=(
+            "Summarize 2-3 principles from OECD AI guidelines or an ISO/IEC AI risk standard.\n"
+            "Include a 'Sources' section with at least 1 http(s) URL.\n"
+            "Acknowledge uncertainty if specific clause IDs are unknown."
+        ),
         expected_criteria=[
             "Mentions OECD or ISO/IEC AI risk standard",
             "Lists 2-3 principles",
-            "Includes at least one source",
+            "Includes a 'Sources' section containing at least 1 http(s) URL",
             "Admits uncertainty when needed"
         ],
         category="research",
