@@ -10,6 +10,7 @@ export const ChatInterface = ({ language = 'english' }) => {
     const [config, setConfig] = useState({ models: {} });
     const [selectedModel, setSelectedModel] = useState('');
     const [selectedRole, setSelectedRole] = useState('generalist');
+    const [strictMode, setStrictMode] = useState(false);
     const [enableTools, setEnableTools] = useState(true);
     const [showSettings, setShowSettings] = useState(false);
     const [toolConfig, setToolConfig] = useState({
@@ -197,6 +198,7 @@ export const ChatInterface = ({ language = 'english' }) => {
                 model: selectedModel,
                 enable_tools: enableTools,
                 role_id: selectedRole,
+                strict_mode: strictMode,
                 language: language,
                 current_date: currentDate,
                 files: attachments.map(f => f.file_id),
@@ -498,6 +500,20 @@ export const ChatInterface = ({ language = 'english' }) => {
                             </select>
                             <div style={{ marginTop: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
                                 Changes apply on the next message.
+                            </div>
+                        </div>
+
+                        <div className="form-group" style={{ marginBottom: '1rem' }}>
+                            <label className="checkbox-label" style={{ justifyContent: 'space-between' }}>
+                                <span>✅ Strict mode (sources & anti-hallucination)</span>
+                                <input
+                                    type="checkbox"
+                                    checked={strictMode}
+                                    onChange={e => setStrictMode(e.target.checked)}
+                                />
+                            </label>
+                            <div style={{ marginTop: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                                Forces a consistent <b>Sources:</b> section with bullet URLs when making non-obvious factual claims.
                             </div>
                         </div>
 

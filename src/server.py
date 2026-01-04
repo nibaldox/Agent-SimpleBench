@@ -172,6 +172,7 @@ async def chat_websocket_endpoint(websocket: WebSocket):
             tools_config = data.get("tools_config")
             language = data.get("language", "english")
             role_id = data.get("role_id") or "generalist"
+            strict_mode = data.get("strict_mode")
             attachments = data.get("files", [])  # list of file_ids (filenames in uploads)
             session_id = data.get("session_id") or "default"
             prefer_toon = data.get("prefer_toon")
@@ -255,6 +256,7 @@ async def chat_websocket_endpoint(websocket: WebSocket):
                     and agent_state.get("enable_tools") == enable_tools
                     and agent_state.get("tools_config") == tools_config
                     and agent_state.get("role_id") == role_id
+                    and agent_state.get("strict_mode") == strict_mode
                 )
 
             if reuse_agent:
@@ -265,6 +267,7 @@ async def chat_websocket_endpoint(websocket: WebSocket):
                     enable_tools=enable_tools,
                     tools_config=tools_config,
                     role_id=role_id,
+                    strict_mode=strict_mode,
                 )
                 websocket.agent_state = {
                     "agent": agent,
@@ -272,6 +275,7 @@ async def chat_websocket_endpoint(websocket: WebSocket):
                     "enable_tools": enable_tools,
                     "tools_config": tools_config,
                     "role_id": role_id,
+                    "strict_mode": strict_mode,
                 }
             
             # Streaming response

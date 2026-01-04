@@ -16,10 +16,12 @@ class BenchmarkAgent:
         enable_tools: bool = True,
         tools_config: dict = None,
         role_id: str | None = None,
+        strict_mode: bool | None = None,
     ):
         self.model_id = model_id or Config.DEFAULT_MODEL_ID
         self.enable_tools = enable_tools
         self.role_id = role_id or "generalist"
+        self.strict_mode = strict_mode
         # Default config if not provided but tools are enabled
         if enable_tools and not tools_config:
             self.tools_config = {
@@ -40,6 +42,17 @@ class BenchmarkAgent:
         agent_tools = []
 
         role = get_role_profile(self.role_id)
+        strict_enabled = bool(self.strict_mode) if self.strict_mode is not None else (self.role_id in {"researcher", "legal_policy"})
+
+        strict_instructions = []
+        if strict_enabled:
+            strict_instructions = [
+                "Strict mode (sources & claims):",
+                "- If you make factual claims that are not obvious/common knowledge (especially numbers, dates, specs, prices), include a 'Sources:' section.",
+                "- 'Sources:' must be the final section and contain bullet lines with ONLY a single http(s) URL per line (no extra text).",
+                "- Do not cite sources without a URL; do not fabricate citations.",
+                "- If you cannot find/verify a claim, say 'Insufficient evidence' and propose what to check next.",
+            ]
         role_instructions = [
             f"Role: {role.name}",
             f"Tagline: {role.tagline}",
@@ -53,7 +66,7 @@ class BenchmarkAgent:
             "Communication:",
             *[f"- {x}" for x in role.communication],
             "Rules:",
-            "- This role is fictional; do not claim real-world identity or lived experience.",
+                "- Do not claim a real-world identity, personal history, or lived experience.",
             "- Stay consistent with the role unless the user explicitly requests a different style.",
         ]
         
@@ -96,7 +109,7 @@ class BenchmarkAgent:
 
         return Agent(
             model=model,
-            description=f"You are an AI agent adopting the fictional persona: {role.name}.",
+            description=f"You are an AI agent adopting the persona: {role.name}.",
             instructions=[
                 "Reliability checkpoints (follow strictly):",
                 "- Do not invent facts, numbers, quotes, code results, file contents, or sources.",
@@ -105,6 +118,7 @@ class BenchmarkAgent:
                 "- Never claim you ran commands, read files, or verified URLs unless you actually did so.",
                 "- Before writing files or proposing commands: sanity-check assumptions and list risks/side-effects when relevant.",
                 "- Prefer small, verifiable steps; validate outputs after changes when possible.",
+                *strict_instructions,
                 "\n".join(role_instructions),
             ],
             tools=agent_tools,
