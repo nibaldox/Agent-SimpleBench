@@ -7,11 +7,19 @@ from agno.tools.serper import SerperTools
 from agno.tools.file import FileTools
 from agno.tools.shell import ShellTools
 from src.config import Config
+from src.roles import get_role_profile
 
 class BenchmarkAgent:
-    def __init__(self, model_id: str = None, enable_tools: bool = True, tools_config: dict = None):
+    def __init__(
+        self,
+        model_id: str = None,
+        enable_tools: bool = True,
+        tools_config: dict = None,
+        role_id: str | None = None,
+    ):
         self.model_id = model_id or Config.DEFAULT_MODEL_ID
         self.enable_tools = enable_tools
+        self.role_id = role_id or "generalist"
         # Default config if not provided but tools are enabled
         if enable_tools and not tools_config:
             self.tools_config = {
@@ -30,6 +38,24 @@ class BenchmarkAgent:
 
     def _create_agent(self) -> Agent:
         agent_tools = []
+
+        role = get_role_profile(self.role_id)
+        role_instructions = [
+            f"Role: {role.name}",
+            f"Tagline: {role.tagline}",
+            f"Biography: {role.biography}",
+            "Experience:",
+            *[f"- {x}" for x in role.experience],
+            "Personality:",
+            *[f"- {x}" for x in role.personality],
+            "Working style:",
+            *[f"- {x}" for x in role.working_style],
+            "Communication:",
+            *[f"- {x}" for x in role.communication],
+            "Rules:",
+            "- This role is fictional; do not claim real-world identity or lived experience.",
+            "- Stay consistent with the role unless the user explicitly requests a different style.",
+        ]
         
         # 1. File System Tools (Safe Absolute Path)
         if self.tools_config.get("file_system", False):
@@ -70,7 +96,7 @@ class BenchmarkAgent:
 
         return Agent(
             model=model,
-            description="You are a general purpose AI agent designed to execute tasks.",
+            description=f"You are an AI agent adopting the fictional persona: {role.name}.",
             instructions=[
                 "You are an agnostic AI Agent.",
                 "Your goal is to complete tasks accurately and efficiently.",
@@ -78,6 +104,7 @@ class BenchmarkAgent:
                 "Always verify your actions if they involve writing files or running commands.",
                 "If you need to search the web, use Serper.",
                 "Provide concise and direct answers.",
+                "\n".join(role_instructions),
             ],
             tools=agent_tools,
             markdown=True,

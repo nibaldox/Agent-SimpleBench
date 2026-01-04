@@ -9,6 +9,7 @@ export const ChatInterface = ({ language = 'english' }) => {
     const [input, setInput] = useState('');
     const [config, setConfig] = useState({ models: {} });
     const [selectedModel, setSelectedModel] = useState('');
+    const [selectedRole, setSelectedRole] = useState('generalist');
     const [enableTools, setEnableTools] = useState(true);
     const [showSettings, setShowSettings] = useState(false);
     const [toolConfig, setToolConfig] = useState({
@@ -57,6 +58,7 @@ export const ChatInterface = ({ language = 'english' }) => {
             .then(data => {
                 setConfig(data);
                 if (data.models) setSelectedModel(Object.values(data.models)[0]);
+                if (Array.isArray(data.roles) && data.roles.length) setSelectedRole(data.roles[0].id);
             })
             .catch(console.error);
     }, []);
@@ -194,6 +196,7 @@ export const ChatInterface = ({ language = 'english' }) => {
                 message: userMsg,
                 model: selectedModel,
                 enable_tools: enableTools,
+                role_id: selectedRole,
                 language: language,
                 current_date: currentDate,
                 files: attachments.map(f => f.file_id),
@@ -479,7 +482,24 @@ export const ChatInterface = ({ language = 'english' }) => {
             {showSettings && (
                 <div className="modal-overlay" onClick={() => setShowSettings(false)}>
                     <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>Tool Configuration</h3>
+                        <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>Agent Settings</h3>
+
+                        <div className="form-group" style={{ marginBottom: '1rem' }}>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Persona</label>
+                            <select
+                                value={selectedRole}
+                                onChange={(e) => setSelectedRole(e.target.value)}
+                                className="form-select"
+                                style={{ width: '100%', borderRadius: '12px' }}
+                            >
+                                {(config.roles || []).map(r => (
+                                    <option key={r.id} value={r.id}>{r.name}{r.tagline ? ` — ${r.tagline}` : ''}</option>
+                                ))}
+                            </select>
+                            <div style={{ marginTop: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                                Changes apply on the next message.
+                            </div>
+                        </div>
 
                         <div className="form-group">
                             <label className="checkbox-label">

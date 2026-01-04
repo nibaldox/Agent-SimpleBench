@@ -13,6 +13,7 @@ from src.run_benchmark import BenchmarkRunner
 from src.agent import BenchmarkAgent
 from src.config import Config
 from src.utils.toon_adapter import encode_for_prompt
+from src.roles import list_roles
 from pydantic import BaseModel
 
 app = FastAPI()
@@ -170,6 +171,7 @@ async def chat_websocket_endpoint(websocket: WebSocket):
             # Granular config
             tools_config = data.get("tools_config")
             language = data.get("language", "english")
+            role_id = data.get("role_id") or "generalist"
             attachments = data.get("files", [])  # list of file_ids (filenames in uploads)
             session_id = data.get("session_id") or "default"
             prefer_toon = data.get("prefer_toon")
@@ -252,6 +254,7 @@ async def chat_websocket_endpoint(websocket: WebSocket):
                     agent_state.get("model_id") == model_id
                     and agent_state.get("enable_tools") == enable_tools
                     and agent_state.get("tools_config") == tools_config
+                    and agent_state.get("role_id") == role_id
                 )
 
             if reuse_agent:
@@ -260,13 +263,15 @@ async def chat_websocket_endpoint(websocket: WebSocket):
                 agent = BenchmarkAgent(
                     model_id=model_id,
                     enable_tools=enable_tools,
-                    tools_config=tools_config
+                    tools_config=tools_config,
+                    role_id=role_id,
                 )
                 websocket.agent_state = {
                     "agent": agent,
                     "model_id": model_id,
                     "enable_tools": enable_tools,
                     "tools_config": tools_config,
+                    "role_id": role_id,
                 }
             
             # Streaming response
@@ -438,6 +443,7 @@ async def get_config():
     categories = sorted({t.category for t in TASKS if getattr(t, "category", None)})
     return {
         "models": Config.get_available_models(),
+        "roles": list_roles(),
         "difficulties": ["All", *Config.DIFFICULTY_LEVELS],
         "categories": ["All", *categories],
         "tasks": [
