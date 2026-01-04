@@ -1,0 +1,311 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { BenchmarkDashboard } from './components/BenchmarkDashboard';
+import { ChatInterface } from './components/ChatInterface';
+import './terminal.css';
+
+// ASCII Art Logo
+const ASCII_LOGO = `
+ █████╗  ██████╗ ███████╗███╗   ██╗████████╗
+██╔══██╗██╔════╝ ██╔════╝████╗  ██║╚══██╔══╝
+███████║██║  ███╗█████╗  ██╔██╗ ██║   ██║   
+██╔══██║██║   ██║██╔══╝  ██║╚██╗██║   ██║   
+██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║   
+╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝   
+██████╗ ███████╗███╗   ██╗ ██████╗██╗  ██╗  
+██╔══██╗██╔════╝████╗  ██║██╔════╝██║  ██║  
+██████╔╝█████╗  ██╔██╗ ██║██║     ███████║  
+██╔══██╗██╔══╝  ██║╚██╗██║██║     ██╔══██║  
+██████╔╝███████╗██║ ╚████║╚██████╗██║  ██║  
+╚═════╝ ╚══════╝╚═╝  ╚═══╝ ╚═════╝╚═╝  ╚═╝  
+`;
+
+const BOOT_SEQUENCE = [
+  { text: 'BIOS Version 2.4.1 - AgentBench Systems Inc.', delay: 100 },
+  { text: 'Copyright (C) 2024-2026 AgentBench Technologies', delay: 50 },
+  { text: '', delay: 100 },
+  { text: 'CPU: Neural Processing Unit x64 @ 4.2 GHz', delay: 80 },
+  { text: 'Memory Test: 32768 MB OK', delay: 120 },
+  { text: 'GPU: Inference Accelerator v3.0 Detected', delay: 80 },
+  { text: '', delay: 50 },
+  { text: 'Initializing AI Subsystems...', delay: 200 },
+  { text: '  [OK] Model Registry Online', delay: 100 },
+  { text: '  [OK] Benchmark Engine Loaded', delay: 100 },
+  { text: '  [OK] Judge Module Ready', delay: 100 },
+  { text: '  [OK] WebSocket Connection Established', delay: 100 },
+  { text: '', delay: 50 },
+  { text: 'Scanning for available models...', delay: 300 },
+  { text: '  > OpenRouter API: Connected', delay: 150 },
+  { text: '  > Ollama Local: Scanning...', delay: 200 },
+  { text: '  > LM Studio: Scanning...', delay: 200 },
+  { text: '', delay: 100 },
+  { text: 'All systems nominal. Ready for operation.', delay: 150 },
+  { text: '', delay: 100 },
+  { text: 'Type "help" for available commands or use the GUI tabs.', delay: 100 },
+  { text: '', delay: 50 },
+];
+
+function App() {
+  const [activeTab, setActiveTab] = useState('benchmark');
+  const [theme, setTheme] = useState('dark');
+  const [language, setLanguage] = useState('english');
+  const [isBooting, setIsBooting] = useState(true);
+  const [bootLines, setBootLines] = useState([]);
+  const [showLogo, setShowLogo] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [isMaximized, setIsMaximized] = useState(true);
+  const bootRef = useRef(null);
+
+  // Update time every second
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Boot sequence effect
+  useEffect(() => {
+    if (!isBooting) return;
+
+    let currentIndex = 0;
+
+    const runBootSequence = async () => {
+      // Show logo first
+      setShowLogo(true);
+      await new Promise(r => setTimeout(r, 800));
+
+      for (const line of BOOT_SEQUENCE) {
+        if (currentIndex >= BOOT_SEQUENCE.length) break;
+        
+        await new Promise(r => setTimeout(r, line.delay));
+        setBootLines(prev => [...prev, line.text]);
+        currentIndex++;
+        
+        // Auto scroll
+        if (bootRef.current) {
+          bootRef.current.scrollTop = bootRef.current.scrollHeight;
+        }
+      }
+
+      // Wait then transition
+      await new Promise(r => setTimeout(r, 500));
+      setIsBooting(false);
+    };
+
+    runBootSequence();
+  }, []);
+
+  // Apply theme
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
+
+  const formatTime = (date) => {
+    return date.toLocaleTimeString('en-US', { hour12: false });
+  };
+
+  const formatDate = (date) => {
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'short', 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  // Skip boot with any key
+  useEffect(() => {
+    const handleKeyPress = () => {
+      if (isBooting) {
+        setIsBooting(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [isBooting]);
+
+  return (
+    <div className="terminal-container">
+      {/* CRT Screen Effect Overlay */}
+      <div className="crt-overlay" />
+      <div className="scanlines" />
+      <div className="screen-flicker" />
+
+      {/* Terminal Window */}
+      <div className={`terminal-window ${isMaximized ? 'maximized' : ''}`}>
+        {/* Terminal Title Bar */}
+        <div className="terminal-titlebar">
+          <div className="titlebar-title">
+            <span className="titlebar-icon">▣</span>
+            agentbench@localhost: ~/benchmark
+          </div>
+          <div className="titlebar-info">
+            <span className="titlebar-time">{formatTime(currentTime)}</span>
+          </div>
+        </div>
+
+        {/* Terminal Content */}
+        <div className="terminal-content">
+          {isBooting ? (
+            /* Boot Sequence Screen */
+            <div className="boot-screen" ref={bootRef}>
+              {showLogo && (
+                <pre className="ascii-logo">{ASCII_LOGO}</pre>
+              )}
+              <div className="boot-lines">
+                {bootLines.map((line, i) => (
+                  <div key={i} className="boot-line">
+                    {line.includes('[OK]') ? (
+                      <>
+                        <span className="boot-ok">[OK]</span>
+                        {line.replace('[OK]', '')}
+                      </>
+                    ) : line.includes('>') ? (
+                      <>
+                        <span className="boot-arrow">{'  >'}</span>
+                        {line.replace('  >', '')}
+                      </>
+                    ) : (
+                      line
+                    )}
+                  </div>
+                ))}
+                <div className="cursor-line">
+                  <span className="cursor">█</span>
+                </div>
+              </div>
+              <div className="skip-hint">Press any key to skip...</div>
+            </div>
+          ) : (
+            /* Main Application */
+            <div className="main-app">
+              {/* Terminal Tabs */}
+              <div className="terminal-tabs">
+                <div className="tab-group">
+                  <button
+                    className={`terminal-tab ${activeTab === 'benchmark' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('benchmark')}
+                  >
+                    <span className="tab-icon">◉</span>
+                    <span className="tab-text">benchmark</span>
+                    <span className="tab-close">×</span>
+                  </button>
+                  <button
+                    className={`terminal-tab ${activeTab === 'chat' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('chat')}
+                  >
+                    <span className="tab-icon">◉</span>
+                    <span className="tab-text">chat</span>
+                    <span className="tab-close">×</span>
+                  </button>
+                  <button
+                    className={`terminal-tab ${activeTab === 'creator' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('creator')}
+                  >
+                    <span className="tab-icon">◉</span>
+                    <span className="tab-text">test-creator</span>
+                    <span className="tab-close">×</span>
+                  </button>
+                  <button className="terminal-tab new-tab">
+                    <span>+</span>
+                  </button>
+                </div>
+                
+                <div className="tab-controls">
+                  {/* Language Selector */}
+                  <div className="control-group">
+                    <span className="control-label">LANG:</span>
+                    <select
+                      value={language}
+                      onChange={(e) => setLanguage(e.target.value)}
+                      className="terminal-select"
+                    >
+                      <option value="english">EN</option>
+                      <option value="spanish">ES</option>
+                      <option value="french">FR</option>
+                      <option value="german">DE</option>
+                      <option value="italian">IT</option>
+                      <option value="portuguese">PT</option>
+                      <option value="dutch">NL</option>
+                      <option value="polish">PL</option>
+                      <option value="turkish">TR</option>
+                      <option value="swedish">SV</option>
+                      <option value="arabic">AR</option>
+                      <option value="hindi">HI</option>
+                      <option value="chinese">ZH</option>
+                      <option value="japanese">JA</option>
+                      <option value="korean">KO</option>
+                      <option value="russian">RU</option>
+                      <option value="greek">EL</option>
+                      <option value="danish">DA</option>
+                      <option value="norwegian">NO</option>
+                      <option value="finnish">FI</option>
+                    </select>
+                  </div>
+
+                  {/* Theme Toggle */}
+                  <button className="control-btn" onClick={toggleTheme} title="Toggle phosphor color">
+                    {theme === 'dark' ? '◐' : '◑'}
+                  </button>
+
+                  {/* System Status */}
+                  <div className="system-status">
+                    <span className="status-dot online" />
+                    <span className="status-text">ONLINE</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Application Content */}
+              <div className="app-content">
+                {activeTab === 'chat' 
+                  ? <ChatInterface language={language} /> 
+                  : <BenchmarkDashboard initialTab={activeTab === 'creator' ? 'creator' : 'dashboard'} language={language} />
+                }
+              </div>
+
+              {/* Status Bar */}
+              <div className="terminal-statusbar">
+                <div className="status-left">
+                  <span className="status-item">
+                    <span className="status-key">MODE</span>
+                    <span className="status-value">{activeTab.toUpperCase()}</span>
+                  </span>
+                  <span className="status-item">
+                    <span className="status-key">LANG</span>
+                    <span className="status-value">{language.toUpperCase().slice(0, 2)}</span>
+                  </span>
+                  <span className="status-item">
+                    <span className="status-key">THEME</span>
+                    <span className="status-value">{theme === 'dark' ? 'GRAY-D' : 'GRAY-L'}</span>
+                  </span>
+                </div>
+                <div className="status-center">
+                  <span className="status-logo">▣ AGENTBENCH v2.0</span>
+                </div>
+                <div className="status-right">
+                  <span className="status-item">
+                    <span className="status-value">{formatDate(currentTime)}</span>
+                  </span>
+                  <span className="status-item">
+                    <span className="status-value blink">{formatTime(currentTime)}</span>
+                  </span>
+                  <span className="status-item">
+                    <span className="status-key">UTF-8</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Desktop Background Pattern */}
+      <div className="desktop-pattern" />
+    </div>
+  );
+}
+
+export default App;

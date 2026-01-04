@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+venv/
+.venv/
+
+# Environment files / secrets
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local agent/dev tooling
+.claude/
+
+# App outputs / generated artifacts
+output.txt
+largest_files.txt
+
+# Benchmark outputs (generated)
+benchmarks/results/
+
+# Scratch / experiments
+workspace/
+
+# Windows reserved filenames accidentally created
+nul
+NUL
+
+# Node (frontend)
+web/node_modules/
+web/dist/
+web/dist-ssr/
+web/*.local

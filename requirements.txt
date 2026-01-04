@@ -1,0 +1,9 @@
+agno
+openai
+duckduckgo-search
+python-dotenv
+yfinance
+pypdf
+requests
+toon-format
+tiktoken

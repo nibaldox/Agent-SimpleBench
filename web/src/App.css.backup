@@ -1,0 +1,57 @@
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  text-align: initial;
+}
+
+/* Language Selector Terminal Styles */
+select {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  text-shadow: 0 0 5px var(--accent-glow);
+}
+
+select option {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  padding: 0.5rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-weight: 600;
+  text-shadow: 0 0 3px var(--accent-glow);
+  border: 1px solid var(--border-color);
+}
+
+select option:hover {
+  background-color: var(--accent-primary);
+  color: var(--btn-text);
+  text-shadow: 0 0 10px var(--bg-primary);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+select option:checked {
+  background-color: var(--bg-secondary);
+  color: var(--accent-primary);
+  box-shadow: 0 0 15px var(--accent-glow);
+}
+
+/* Custom scrollbar for select dropdown - Terminal style */
+select::-webkit-scrollbar {
+  width: 10px;
+}
+
+select::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+}
+
+select::-webkit-scrollbar-thumb {
+  background: var(--accent-primary);
+  border: 2px solid var(--bg-primary);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+select::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-secondary);
+  box-shadow: 0 0 20px var(--accent-glow);
+}

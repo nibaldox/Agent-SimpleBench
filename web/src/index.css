@@ -1,0 +1,436 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* Light Gray Terminal Theme */
+  --bg-primary: #0d0d0d;
+  --bg-secondary: #121212;
+  --bg-tertiary: #181818;
+  --text-primary: #d0d0d0;
+  --text-secondary: #888888;
+  --text-muted: #555555;
+  --accent-primary: #c8c8c8;
+  --accent-secondary: #a0a0a0;
+  --accent-glow: rgba(200, 200, 200, 0.2);
+  --glass-bg: rgba(200, 200, 200, 0.03);
+  --glass-border: rgba(200, 200, 200, 0.15);
+  --glass-glow: rgba(200, 200, 200, 0.08);
+  --shadow: rgba(0, 0, 0, 0.8);
+  --border-color: #2a2a2a;
+  --success: #4ade80;
+  --error: #f87171;
+  --warning: #fbbf24;
+  --btn-text: #0d0d0d;
+  --scanline-color: rgba(200, 200, 200, 0.02);
+  --crt-flicker: rgba(200, 200, 200, 0.01);
+}
+
+[data-theme="light"] {
+  /* Warm Gray Theme */
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #202020;
+  --bg-tertiary: #262626;
+  --text-primary: #e8e8e8;
+  --text-secondary: #999999;
+  --text-muted: #666666;
+  --accent-primary: #e0e0e0;
+  --accent-secondary: #b0b0b0;
+  --accent-glow: rgba(224, 224, 224, 0.2);
+  --glass-bg: rgba(224, 224, 224, 0.03);
+  --glass-border: rgba(224, 224, 224, 0.15);
+  --glass-glow: rgba(224, 224, 224, 0.08);
+  --shadow: rgba(0, 0, 0, 0.8);
+  --border-color: #3a3a3a;
+  --success: #4ade80;
+  --error: #f87171;
+  --warning: #fbbf24;
+  --btn-text: #1a1a1a;
+  --scanline-color: rgba(224, 224, 224, 0.02);
+  --crt-flicker: rgba(224, 224, 224, 0.01);
+}
+
+/* Light mode specific overrides */
+[data-theme="light"] .glass-panel {
+  background: rgba(255, 170, 0, 0.05);
+  box-shadow: 0 0 15px rgba(255, 170, 0, 0.1);
+  border: 1px solid rgba(255, 170, 0, 0.2);
+}
+
+[data-theme="light"] .glass-panel:hover {
+  box-shadow: 0 0 25px rgba(255, 170, 0, 0.2);
+  border-color: var(--accent-primary);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: var(--accent-primary);
+  border: 2px solid var(--bg-primary);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-secondary);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  background: #050705;
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.container {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(2px);
+  border: 2px solid var(--glass-border);
+  border-radius: 4px;
+  box-shadow: 
+    0 0 10px var(--accent-glow),
+    0 0 20px var(--crt-flicker),
+    inset 0 0 10px var(--crt-flicker),
+    0 4px 20px var(--shadow);
+  transition: transform 0.15s ease, 
+              box-shadow 0.2s ease, 
+              border-color 0.2s ease;
+  position: relative;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.glass-panel::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, var(--accent-glow), transparent 40%, transparent 60%, var(--glass-glow));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.glass-panel:hover {
+  box-shadow: 
+    0 0 20px var(--accent-glow),
+    0 0 40px var(--accent-glow),
+    inset 0 0 20px var(--accent-glow),
+    0 8px 30px var(--shadow);
+  border-color: var(--accent-primary);
+  transform: translateY(-2px);
+  animation: glow-pulse 1.5s ease-in-out infinite;
+}
+
+.glass-panel:hover::before {
+  opacity: 1;
+}
+
+.btn-primary {
+  background: var(--bg-secondary);
+  border: 2px solid var(--accent-primary);
+  color: var(--accent-primary);
+  padding: 0.7rem 1.4rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+  box-shadow: 
+    0 0 10px var(--accent-glow),
+    0 0 20px var(--crt-flicker),
+    inset 0 0 10px var(--crt-flicker);
+  position: relative;
+  overflow: hidden;
+  text-shadow: 0 0 5px var(--accent-glow);
+}
+
+.btn-primary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, transparent, rgba(255,255,255,0.15), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.5s ease;
+}
+
+.btn-primary:hover:not(:disabled)::before {
+  transform: translateX(100%);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-primary);
+  color: var(--btn-text);
+  transform: translateY(-2px);
+  box-shadow: 
+    0 0 20px var(--accent-glow),
+    0 0 40px var(--accent-glow),
+    inset 0 0 20px var(--accent-glow);
+  text-shadow: 0 0 10px var(--bg-primary);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(-1px) scale(0.99);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+  filter: grayscale(0.3);
+}
+
+.mono {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* Stat card glow effect */
+.stat-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.stat-card:hover::after {
+  opacity: 1;
+}
+
+/* Badge terminal styles */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 2px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-family: 'JetBrains Mono', monospace;
+  border: 1px solid;
+  text-shadow: 0 0 5px currentColor;
+  box-shadow: 0 0 10px currentColor;
+}
+
+.badge-success {
+  background: rgba(0, 255, 65, 0.1);
+  color: var(--success);
+  border-color: var(--success);
+}
+
+.badge-error {
+  background: rgba(255, 51, 51, 0.1);
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.badge-neutral {
+  background: rgba(0, 255, 65, 0.05);
+  color: var(--text-secondary);
+  border-color: var(--glass-border);
+}
+
+/* Terminal Scrollbar styling */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--accent-primary);
+  border: 2px solid var(--bg-primary);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-secondary);
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+/* Terminal Animations */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { 
+    box-shadow: 0 0 10px var(--accent-glow),
+                0 0 20px var(--crt-flicker),
+                inset 0 0 10px var(--crt-flicker);
+  }
+  50% { 
+    box-shadow: 0 0 20px var(--accent-glow),
+                0 0 40px var(--accent-glow),
+                inset 0 0 20px var(--accent-glow);
+  }
+}
+
+@keyframes crt-flicker {
+  0% { opacity: 0.98; }
+  50% { opacity: 1; }
+  100% { opacity: 0.98; }
+}
+
+@keyframes scanlines {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(10px); }
+}
+
+@keyframes blink-cursor {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+@keyframes text-glow {
+  0%, 100% {
+    text-shadow: 0 0 5px var(--accent-glow),
+                 0 0 10px var(--accent-glow),
+                 0 0 15px var(--crt-flicker);
+  }
+  50% {
+    text-shadow: 0 0 10px var(--accent-glow),
+                 0 0 20px var(--accent-glow),
+                 0 0 30px var(--accent-glow);
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-glow {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+/* Selection Terminal style */
+::selection {
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+  text-shadow: none;
+}
+
+/* Terminal cursor effect */
+.terminal-cursor::after {
+  content: '█';
+  animation: blink-cursor 1s step-end infinite;
+  color: var(--accent-primary);
+  text-shadow: 0 0 10px var(--accent-glow);
+}
+
+/* Stat card terminal glow effect */
+.stat-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 0 10px var(--crt-flicker);
+}
+
+.stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent-primary);
+  box-shadow: 0 0 10px var(--accent-glow);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.stat-card:hover {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.stat-card:hover::after {
+  opacity: 1;
+  animation: text-glow 1.5s ease-in-out infinite;
+}
+
+/* Terminal text effects */
+.terminal-text {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  text-shadow: 0 0 5px var(--accent-glow);
+  letter-spacing: 0.05em;
+}
+
+.terminal-prompt::before {
+  content: '> ';
+  color: var(--accent-primary);
+  text-shadow: 0 0 10px var(--accent-glow);
+}
+
+/* Container terminal spacing */
+.container {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+/* Loading terminal effect */
+.loading-dots::after {
+  content: '...';
+  animation: loading-dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes loading-dots {
+  0%, 20% { content: '.'; }
+  40% { content: '..'; }
+  60%, 100% { content: '...'; }
+}

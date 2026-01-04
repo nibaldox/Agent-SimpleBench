@@ -1,0 +1,1771 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Play, Activity, CheckCircle, XCircle, Clock, History, Zap, TrendingUp, Timer, BarChart3, Trash2, Eye } from 'lucide-react';
+import { Console } from './Console';
+import { ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, Legend, BarChart, LineChart } from 'recharts';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+export const BenchmarkDashboard = ({ initialTab = 'dashboard', language = 'english' }) => {
+    const [status, setStatus] = useState('idle');
+    const [logs, setLogs] = useState([]);
+    const [results, setResults] = useState([]);
+    const [config, setConfig] = useState({ models: {}, difficulties: [], categories: [], tasks: [] });
+    const [selectedModel, setSelectedModel] = useState('');
+    const [selectedDifficulty, setSelectedDifficulty] = useState('Medium');
+    const [selectedCategory, setSelectedCategory] = useState('All');
+    const [selectedTask, setSelectedTask] = useState('');
+    const [enableTools, setEnableTools] = useState(true);
+    const [selectedResult, setSelectedResult] = useState(null);
+    const [showHistory, setShowHistory] = useState(false);
+    const [historyFiles, setHistoryFiles] = useState([]);
+    const [agentMessages, setAgentMessages] = useState([]);
+    const wsRef = useRef(null);
+    const [activeTab, setActiveTab] = useState(initialTab);
+    const [newTask, setNewTask] = useState({ name: '', prompt: '', expected_criteria: '', difficulty: 'Medium' });
+    const [createStatus, setCreateStatus] = useState('');
+    const [compareData, setCompareData] = useState([]);
+    const [selectedBenchmarks, setSelectedBenchmarks] = useState([]);
+    const [loadingCompare, setLoadingCompare] = useState(false);
+    const [selectedTaskDetails, setSelectedTaskDetails] = useState(null);
+    const [selectedTaskDetailsStatus, setSelectedTaskDetailsStatus] = useState('idle');
+    const [showTaskPreview, setShowTaskPreview] = useState(false);
+
+    // Sync with parent's initialTab prop
+    useEffect(() => {
+        setActiveTab(initialTab);
+    }, [initialTab]);
+
+    // Load selected task details for preview
+    useEffect(() => {
+        if (!selectedTask) {
+            setSelectedTaskDetails(null);
+            setSelectedTaskDetailsStatus('idle');
+            return;
+        }
+
+        let cancelled = false;
+        const load = async () => {
+            setSelectedTaskDetailsStatus('loading');
+            try {
+                const res = await fetch(`http://127.0.0.1:8000/api/tasks/${encodeURIComponent(selectedTask)}`);
+                if (!res.ok) throw new Error(`Failed to load task (${res.status})`);
+                const data = await res.json();
+                if (cancelled) return;
+                setSelectedTaskDetails(data);
+                setSelectedTaskDetailsStatus('loaded');
+            } catch (e) {
+                if (cancelled) return;
+                console.error(e);
+                setSelectedTaskDetails(null);
+                setSelectedTaskDetailsStatus('error');
+            }
+        };
+
+        load();
+        return () => { cancelled = true; };
+    }, [selectedTask]);
+
+    const toggleTheme = () => {
+        setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+    };
+
+    // Load all benchmarks for comparison
+    const loadAllBenchmarks = async () => {
+        setLoadingCompare(true);
+        try {
+            const res = await fetch('http://127.0.0.1:8000/api/reports');
+            const data = await res.json();
+            
+            const benchmarkPromises = data.reports.map(async (file) => {
+                try {
+                    const reportRes = await fetch(`http://127.0.0.1:8000/api/reports/${file.filename}`);
+                    const reportData = await reportRes.json();
+                    
+                    // Handle both old format (array) and new format (object with model)
+                    const isOldFormat = Array.isArray(reportData);
+                    
+                    // Extract model and stats
+                    let totalRuns = 0;
+                    let totalScore = 0;
+                    let totalDuration = 0;
+                    let successCount = 0;
+                    let taskNames = [];
+                    let modelName = 'Unknown';
+                    let difficulty = 'Unknown';
+                    
+                    if (isOldFormat) {
+                        // Old format: array of tasks directly
+                        reportData.forEach(task => {
+                            taskNames.push(task.task_name);
+                            if (task.runs) {
+                                task.runs.forEach(run => {
+                                    totalRuns++;
+                                    totalScore += run.score || 0;
+                                    totalDuration += run.duration || 0;
+                                    if (run.success) successCount++;
+                                });
+                            }
+                        });
+                        // Try to extract model from filename
+                        modelName = 'Legacy Format';
+                    } else {
+                        // New format: object with model, config, and results
+                        modelName = reportData.model || 'Unknown';
+                        difficulty = reportData.config?.difficulty || 'Unknown';
+                        
+                        if (reportData.results) {
+                            reportData.results.forEach(task => {
+                                taskNames.push(task.task_name);
+                                if (task.runs) {
+                                    task.runs.forEach(run => {
+                                        totalRuns++;
+                                        totalScore += run.score || 0;
+                                        totalDuration += run.duration || 0;
+                                        if (run.success) successCount++;
+                                    });
+                                }
+                            });
+                        }
+                    }
+                    
+                    return {
+                        filename: file.filename,
+                        date: file.date,
+                        model: modelName,
+                        difficulty: difficulty,
+                        totalRuns,
+                        avgScore: totalRuns > 0 ? (totalScore / totalRuns).toFixed(1) : 0,
+                        avgDuration: totalRuns > 0 ? (totalDuration / totalRuns).toFixed(2) : 0,
+                        successRate: totalRuns > 0 ? ((successCount / totalRuns) * 100).toFixed(0) : 0,
+                        tasks: taskNames,
+                        rawData: reportData,
+                        isOldFormat
+                    };
+                } catch (e) {
+                    console.error(`Error loading ${file.filename}:`, e);
+                    return null;
+                }
+            });
+            
+            const benchmarks = (await Promise.all(benchmarkPromises)).filter(b => b !== null);
+            setCompareData(benchmarks.sort((a, b) => b.filename.localeCompare(a.filename)));
+        } catch (e) {
+            console.error('Error loading benchmarks:', e);
+        }
+        setLoadingCompare(false);
+    };
+
+    const toggleBenchmarkSelection = (filename) => {
+        setSelectedBenchmarks(prev => {
+            if (prev.includes(filename)) {
+                return prev.filter(f => f !== filename);
+            }
+            return [...prev, filename];
+        });
+    };
+
+    // Format model name for display
+    const formatModelName = (model, maxLength = 25) => {
+        if (!model || model === 'Unknown' || model === 'Legacy Format') return model;
+        // Remove common prefixes like 'ollama/', 'openai/', etc.
+        let name = model.replace(/^(ollama|openai|anthropic|deepseek|google)\//i, '');
+        // Remove version tags like ':latest'
+        name = name.replace(/:latest$/, '');
+        // Truncate if needed
+        if (maxLength && name.length > maxLength) {
+            return name.substring(0, maxLength) + '…';
+        }
+        return name;
+    };
+
+    const getComparisonChartData = () => {
+        const selected = compareData.filter(b => selectedBenchmarks.includes(b.filename));
+        return selected.map(b => ({
+            name: formatModelName(b.model, 12),
+            fullName: b.model,
+            date: b.date,
+            avgScore: parseFloat(b.avgScore),
+            avgDuration: parseFloat(b.avgDuration),
+            successRate: parseFloat(b.successRate),
+            runs: b.totalRuns
+        }));
+    };
+
+    // Fetch History
+    const fetchHistory = () => {
+        fetch('http://127.0.0.1:8000/api/reports')
+            .then(res => res.json())
+            .then(data => setHistoryFiles(data.reports))
+            .catch(console.error);
+    };
+
+    useEffect(() => {
+        // Fetch Config
+        fetch('http://127.0.0.1:8000/api/config')
+            .then(res => res.json())
+            .then(data => {
+                setConfig(data);
+                if (data.models) setSelectedModel(Object.values(data.models)[0]);
+                if (Array.isArray(data.difficulties) && data.difficulties.length && !data.difficulties.includes(selectedDifficulty)) {
+                    setSelectedDifficulty(data.difficulties.includes('Medium') ? 'Medium' : data.difficulties[0]);
+                }
+                if (Array.isArray(data.categories) && data.categories.length && !data.categories.includes(selectedCategory)) {
+                    setSelectedCategory('All');
+                }
+            })
+            .catch(err => {
+                console.error("Config log error:", err);
+                setLogs(prev => [...prev, { type: 'log', message: `❌ Config Error: ${err.message}`, level: 'ERROR', timestamp: Date.now() / 1000 }]);
+            });
+
+        fetchHistory();
+
+        // Connect WebSocket with retry/cleanup logic
+        let ws = new WebSocket('ws://127.0.0.1:8000/ws');
+
+        const setupWs = (socket) => {
+            socket.onopen = () => console.log('✅ WS Connected');
+            socket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'log') {
+                        setLogs(prev => [...prev, data]);
+                    } else if (data.type === 'result') {
+                        setResults(prev => {
+                            // Avoid duplicates
+                            const exists = prev.find(r => r.iteration === data.data.iteration && r.duration === data.data.duration);
+                            if (!exists) return [...prev, data.data];
+                            return prev;
+                        });
+                    } else if (data.type === 'agent_message') {
+                        setAgentMessages(prev => {
+                            const next = [...prev, data.data];
+                            return next.slice(-80); // keep recent
+                        });
+                    } else if (data.type === 'end') {
+                        setStatus('completed');
+                        fetchHistory(); // Refresh history on completion
+                    }
+                } catch (err) {
+                    console.error("Error parsing WS message:", err);
+                }
+            };
+            socket.onerror = (err) => console.error("WS Error:", err);
+            socket.onclose = () => console.log("WS Disconnected");
+        };
+
+        setupWs(ws);
+        wsRef.current = ws;
+
+        return () => {
+            if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+                ws.close();
+            }
+        };
+    }, []);
+
+    const normalizeCategory = (c) => (typeof c === 'string' && c.trim()) ? c.trim() : 'uncategorized';
+
+    const filteredTasks = (config.tasks || []).filter(t => {
+        const difficultyOk = selectedDifficulty === 'All' || t.difficulty === selectedDifficulty;
+        const categoryOk = selectedCategory === 'All' || normalizeCategory(t.category) === selectedCategory;
+        return difficultyOk && categoryOk;
+    });
+
+    const groupedTasks = filteredTasks.reduce((acc, t) => {
+        const cat = normalizeCategory(t.category);
+        if (!acc[cat]) acc[cat] = [];
+        acc[cat].push(t);
+        return acc;
+    }, {});
+
+    const groupedCategoryKeys = Object.keys(groupedTasks).sort((a, b) => a.localeCompare(b));
+
+    const startBenchmark = async () => {
+        console.log("🖱️ Run button clicked!");
+        setStatus('running');
+        setLogs(prev => [...prev, { type: 'log', message: '🚀 Starting Benchmark Request...', level: 'INFO', timestamp: Date.now() / 1000 }]);
+        setResults([]);
+        try {
+            console.log("📡 Sending start request to backend...");
+            const response = await fetch('http://127.0.0.1:8000/api/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model_id: selectedModel,
+                    difficulty: selectedDifficulty,
+                    enable_tools: enableTools,
+                    task_id: selectedTask || null,
+                    language: language
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP Error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log("✅ Backend response:", data);
+            setLogs(prev => [...prev, { type: 'log', message: '✅ Benchmark Started Successfully', level: 'SUCCESS', timestamp: Date.now() / 1000 }]);
+        } catch (e) {
+            console.error("❌ Error starting benchmark:", e);
+            setStatus('error');
+            setLogs(prev => [...prev, { type: 'log', message: `❌ Connection Failed: ${e.message}. Check if Backend is running.`, level: 'ERROR', timestamp: Date.now() / 1000 }]);
+        }
+    };
+
+    const stopBenchmark = async () => {
+        try {
+            await fetch('http://localhost:8000/api/stop', { method: 'POST' });
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const loadReport = async (filename) => {
+        try {
+            setLogs(prev => [...prev, { type: 'log', message: `📂 Loading report: ${filename}...`, level: 'INFO', timestamp: Date.now() / 1000 }]);
+            const res = await fetch(`http://localhost:8000/api/reports/${filename}`);
+            const data = await res.json();
+
+            const flatRuns = [];
+            if (data.results) {
+                data.results.forEach(task => {
+                    task.runs.forEach(run => {
+                        flatRuns.push({
+                            ...run,
+                            taskName: task.task_name,
+                            prompt: task.prompt || "Prompt not available in this historical record.",
+                            // Add any other props expected by UI
+                        });
+                    });
+                });
+            } else if (data.aggregated_results) {
+                // Handle old format if valid
+                data.aggregated_results.forEach(task => {
+                    task.runs.forEach(run => {
+                        flatRuns.push({
+                            ...run,
+                            taskName: task.task_name,
+                            prompt: task.prompt || "Prompt not available in this historical record.",
+                        });
+                    });
+                });
+            }
+
+            setResults(flatRuns);
+            setStatus('completed');
+            setShowHistory(false);
+            setLogs(prev => [...prev, { type: 'log', message: `✅ Loaded ${flatRuns.length} runs from history.`, level: 'SUCCESS', timestamp: Date.now() / 1000 }]);
+
+        } catch (e) {
+            console.error("Error loading report:", e);
+            setLogs(prev => [...prev, { type: 'log', message: `❌ Error loading report: ${e.message}`, level: 'ERROR', timestamp: Date.now() / 1000 }]);
+        }
+    };
+
+    const handleCreateTask = async (e) => {
+        e.preventDefault();
+        setCreateStatus('submitting');
+        try {
+            // Parse criteria
+            const criteriaList = newTask.expected_criteria.split('\n').filter(line => line.trim() !== '');
+
+            const res = await fetch('http://localhost:8000/api/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: newTask.name,
+                    prompt: newTask.prompt,
+                    expected_criteria: criteriaList,
+                    difficulty: newTask.difficulty
+                })
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                setCreateStatus('success');
+                setNewTask({ name: '', prompt: '', expected_criteria: '', difficulty: 'Medium' });
+                // Refresh config to see new task
+                fetchConfig();
+                setTimeout(() => setCreateStatus(''), 3000);
+            } else {
+                setCreateStatus('error: ' + data.message);
+            }
+        } catch (e) {
+            setCreateStatus('error: ' + e.message);
+        }
+    };
+
+    // Stats calculation
+    const totalRuns = results.length;
+    const avgScore = results.length ? (results.reduce((acc, r) => acc + (r.score || 0), 0) / results.length).toFixed(1) : 0;
+    const avgDuration = results.length ? (results.reduce((acc, r) => acc + (r.duration || 0), 0) / results.length).toFixed(2) : 0;
+
+    return (
+        <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+            overflow: 'hidden',
+            background: 'var(--bg-primary)',
+            color: 'var(--text-primary)'
+        }}>
+
+            {/* Header - Bold Industrial Design */}
+            <header style={{
+                flexShrink: 0,
+                padding: '0.9rem 1.25rem',
+                borderBottom: '1px solid var(--border-color)',
+                display: 'flex',
+                flexWrap: 'nowrap',
+                gap: '1rem',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: 'linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%)',
+                position: 'relative',
+                overflowX: 'auto',
+                minHeight: '64px'
+            }}>
+                {/* Subtle top accent line */}
+                <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: '2px',
+                    background: 'linear-gradient(90deg, var(--accent-primary), var(--accent-secondary), var(--accent-primary))',
+                    opacity: 0.7
+                }} />
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                    {/* History Toggle - Enhanced */}
+                    <button
+                        onClick={() => { setShowHistory(!showHistory); fetchHistory(); }}
+                        style={{
+                            background: showHistory 
+                                ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))' 
+                                : 'var(--glass-bg)',
+                            color: showHistory ? 'var(--btn-text, #0a0b0d)' : 'var(--text-primary)',
+                            border: '1px solid var(--glass-border)',
+                            borderRadius: '10px',
+                            padding: '0.6rem',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                        title="Toggle History"
+                    >
+                        <History size={18} strokeWidth={2.5} />
+                    </button>
+
+                    {/* Logo/Brand */}
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
+                        <h1 style={{
+                            fontSize: '1.75rem',
+                            margin: 0,
+                            fontWeight: '800',
+                            letterSpacing: '-0.04em',
+                            fontFamily: "'Syne', sans-serif",
+                            background: 'linear-gradient(135deg, var(--text-primary) 40%, var(--accent-primary) 100%)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                            backgroundClip: 'text'
+                        }}>
+                            Agent<span style={{ 
+                                background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                backgroundClip: 'text'
+                            }}>Bench</span>
+                        </h1>
+                        <span style={{ 
+                            fontSize: '0.6rem', 
+                            color: 'var(--text-secondary)', 
+                            fontWeight: 700,
+                            letterSpacing: '0.06em',
+                            textTransform: 'uppercase',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            background: 'var(--glass-bg)',
+                            border: '1px solid var(--glass-border)'
+                        }}>v2</span>
+                    </div>
+
+                    {/* Navigation Tabs - Pill Style */}
+                    <div style={{ 
+                        display: 'flex', 
+                        gap: '4px', 
+                        marginLeft: '0.75rem',
+                        background: 'var(--glass-bg)',
+                        padding: '4px',
+                        borderRadius: '12px',
+                        border: '1px solid var(--glass-border)'
+                    }}>
+                        <button
+                            onClick={() => setActiveTab('dashboard')}
+                            style={{
+                                background: activeTab === 'dashboard' 
+                                    ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))' 
+                                    : 'transparent',
+                                color: activeTab === 'dashboard' ? 'var(--btn-text, #0a0b0d)' : 'var(--text-secondary)',
+                                border: 'none', 
+                                padding: '0.5rem 1.1rem', 
+                                borderRadius: '8px', 
+                                cursor: 'pointer', 
+                                fontWeight: 700,
+                                fontSize: '0.85rem',
+                                fontFamily: "'Syne', sans-serif",
+                                transition: 'all 0.2s ease',
+                                letterSpacing: '0.01em'
+                            }}
+                        >
+                            Dashboard
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('creator')}
+                            style={{
+                                background: activeTab === 'creator' 
+                                    ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))' 
+                                    : 'transparent',
+                                color: activeTab === 'creator' ? 'var(--btn-text, #0a0b0d)' : 'var(--text-secondary)',
+                                border: 'none', 
+                                padding: '0.5rem 1.1rem', 
+                                borderRadius: '8px', 
+                                cursor: 'pointer', 
+                                fontWeight: 700,
+                                fontSize: '0.85rem',
+                                fontFamily: "'Syne', sans-serif",
+                                transition: 'all 0.2s ease',
+                                letterSpacing: '0.01em'
+                            }}
+                        >
+                            Test Creator
+                        </button>
+                        <button
+                            onClick={() => { setActiveTab('compare'); loadAllBenchmarks(); }}
+                            style={{
+                                background: activeTab === 'compare' 
+                                    ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))' 
+                                    : 'transparent',
+                                color: activeTab === 'compare' ? 'var(--btn-text, #0a0b0d)' : 'var(--text-secondary)',
+                                border: 'none', 
+                                padding: '0.5rem 1.1rem', 
+                                borderRadius: '8px', 
+                                cursor: 'pointer', 
+                                fontWeight: 700,
+                                fontSize: '0.85rem',
+                                fontFamily: "'Syne', sans-serif",
+                                transition: 'all 0.2s ease',
+                                letterSpacing: '0.01em',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem'
+                            }}
+                        >
+                            <BarChart3 size={14} />
+                            Compare
+                        </button>
+                    </div>
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '0.85rem', alignItems: 'center', minWidth: 0, overflowX: 'auto' }}>
+
+                    {/* Controls Group - Enhanced */}
+                    <div style={{ 
+                        display: 'flex', 
+                        gap: '0.5rem', 
+                        background: 'var(--glass-bg)', 
+                        padding: '0.35rem 0.5rem', 
+                        borderRadius: '12px', 
+                        border: '1px solid var(--glass-border)',
+                        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)'
+                    }}>
+                        <select
+                            value={selectedModel}
+                            onChange={(e) => setSelectedModel(e.target.value)}
+                            style={{ 
+                                background: 'transparent', 
+                                color: 'var(--text-primary)', 
+                                border: 'none', 
+                                padding: '0.4rem 0.5rem', 
+                                outline: 'none', 
+                                cursor: 'pointer', 
+                                maxWidth: '150px',
+                                fontFamily: "'Syne', sans-serif",
+                                fontWeight: 600,
+                                fontSize: '0.85rem'
+                            }}
+                            disabled={status === 'running'}
+                        >
+                            {Object.entries(config.models).map(([name, id]) => (
+                                <option key={id} value={id} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>{name}</option>
+                            ))}
+                        </select>
+                        <div style={{ width: 1, height: '60%', alignSelf: 'center', background: 'var(--glass-border)' }} />
+                        <select
+                            value={selectedDifficulty}
+                            onChange={(e) => { setSelectedDifficulty(e.target.value); setSelectedTask(''); setShowTaskPreview(false); }}
+                            style={{ 
+                                background: 'transparent', 
+                                color: 'var(--text-primary)', 
+                                border: 'none', 
+                                padding: '0.4rem 0.5rem', 
+                                outline: 'none', 
+                                cursor: 'pointer',
+                                fontFamily: "'Syne', sans-serif",
+                                fontWeight: 600,
+                                fontSize: '0.85rem'
+                            }}
+                            disabled={status === 'running'}
+                        >
+                            {config.difficulties.map(diff => (
+                                <option key={diff} value={diff} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>{diff}</option>
+                            ))}
+                        </select>
+                        <div style={{ width: 1, height: '60%', alignSelf: 'center', background: 'var(--glass-border)' }} />
+                        <select
+                            value={selectedCategory}
+                            onChange={(e) => { setSelectedCategory(e.target.value); setSelectedTask(''); setShowTaskPreview(false); }}
+                            style={{ 
+                                background: 'transparent', 
+                                color: 'var(--text-primary)', 
+                                border: 'none', 
+                                padding: '0.4rem 0.5rem', 
+                                outline: 'none', 
+                                cursor: 'pointer',
+                                fontFamily: "'Syne', sans-serif",
+                                fontWeight: 600,
+                                fontSize: '0.85rem'
+                            }}
+                            disabled={status === 'running'}
+                        >
+                            {(config.categories && config.categories.length ? config.categories : ['All']).map(cat => (
+                                <option key={cat} value={cat} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>{cat}</option>
+                            ))}
+                        </select>
+                        <div style={{ width: 1, height: '60%', alignSelf: 'center', background: 'var(--glass-border)' }} />
+                        <select
+                            value={selectedTask}
+                            onChange={(e) => { setSelectedTask(e.target.value); setShowTaskPreview(false); }}
+                            style={{ 
+                                background: 'transparent', 
+                                color: 'var(--text-primary)', 
+                                border: 'none', 
+                                padding: '0.4rem 0.5rem', 
+                                outline: 'none', 
+                                cursor: 'pointer', 
+                                maxWidth: '200px',
+                                fontFamily: "'Syne', sans-serif",
+                                fontWeight: 600,
+                                fontSize: '0.85rem'
+                            }}
+                            disabled={status === 'running'}
+                        >
+                            <option value="" style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}>
+                                {`All in ${selectedDifficulty}${selectedCategory !== 'All' ? ` / ${selectedCategory}` : ''}`}
+                            </option>
+
+                            {/* If Category is All, group by category for better navigation */}
+                            {selectedCategory === 'All'
+                                ? groupedCategoryKeys.map(cat => (
+                                    <optgroup key={cat} label={cat}>
+                                        {groupedTasks[cat]
+                                            .slice()
+                                            .sort((a, b) => a.name.localeCompare(b.name))
+                                            .map(t => (
+                                                <option key={t.id} value={t.id} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>{t.name}</option>
+                                            ))}
+                                    </optgroup>
+                                ))
+                                : filteredTasks
+                                    .slice()
+                                    .sort((a, b) => a.name.localeCompare(b.name))
+                                    .map(t => (
+                                        <option key={t.id} value={t.id} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>{t.name}</option>
+                                    ))
+                            }
+                        </select>
+
+                        {selectedTask && (
+                            <button
+                                onClick={() => setShowTaskPreview(true)}
+                                title="Preview selected task"
+                                style={{
+                                    marginLeft: '0.25rem',
+                                    padding: '0.4rem 0.6rem',
+                                    background: 'transparent',
+                                    border: '1px solid var(--glass-border)',
+                                    borderRadius: '8px',
+                                    color: 'var(--text-primary)',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem',
+                                    fontFamily: "'Syne', sans-serif",
+                                    fontWeight: 700,
+                                    fontSize: '0.8rem',
+                                    transition: 'all 0.2s ease'
+                                }}
+                                disabled={status === 'running'}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                                    e.currentTarget.style.boxShadow = '0 0 14px var(--accent-glow)';
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.borderColor = 'var(--glass-border)';
+                                    e.currentTarget.style.boxShadow = 'none';
+                                }}
+                            >
+                                <Eye size={14} /> Preview
+                            </button>
+                        )}
+                    </div>
+
+                    <div style={{ 
+                        padding: '0.5rem 0.75rem', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '0.5rem',
+                        background: 'var(--glass-bg)',
+                        border: '1px solid var(--glass-border)',
+                        borderRadius: '10px'
+                    }}>
+                        <input
+                            type="checkbox"
+                            checked={enableTools}
+                            onChange={(e) => setEnableTools(e.target.checked)}
+                            id="enableTools"
+                            style={{ 
+                                accentColor: 'var(--accent-primary)', 
+                                cursor: 'pointer',
+                                width: '16px',
+                                height: '16px'
+                            }}
+                            disabled={status === 'running'}
+                        />
+                        <label htmlFor="enableTools" style={{ 
+                            fontSize: '0.85rem', 
+                            color: 'var(--text-secondary)', 
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            fontFamily: "'Syne', sans-serif"
+                        }}>Tools</label>
+                    </div>
+
+                    <button
+                        className="btn-primary"
+                        onClick={startBenchmark}
+                        disabled={status === 'running'}
+                        style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '0.5rem', 
+                            padding: '0.65rem 1.2rem',
+                            fontFamily: "'Syne', sans-serif",
+                            minWidth: '130px',
+                            justifyContent: 'center',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0
+                        }}
+                    >
+                        {status === 'running' ? <Activity className="animate-pulse" size={18} strokeWidth={2.5} /> : <Play size={18} strokeWidth={2.5} />}
+                        {status === 'running' ? 'RUNNING...' : 'RUN'}
+                    </button>
+
+                    {/* Stop button always visible to maintain fixed layout */}
+                    <button 
+                        onClick={stopBenchmark}
+                        disabled={status !== 'running'}
+                        title={status === 'running' ? 'Stop benchmark' : 'No benchmark running'}
+                        style={{ 
+                            color: 'var(--error, #ef4444)', 
+                            background: status === 'running' ? 'rgba(239, 68, 68, 0.15)' : 'transparent', 
+                            border: '1px solid rgba(239, 68, 68, 0.3)', 
+                            padding: '0.6rem', 
+                            borderRadius: '10px', 
+                            cursor: status === 'running' ? 'pointer' : 'not-allowed',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s ease',
+                            opacity: status === 'running' ? 1 : 0.35,
+                            flexShrink: 0
+                        }}
+                        onMouseEnter={status === 'running' ? (e => {
+                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.25)';
+                            e.currentTarget.style.borderColor = 'var(--error, #ef4444)';
+                        }) : undefined}
+                        onMouseLeave={status === 'running' ? (e => {
+                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)';
+                            e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                        }) : undefined}
+                    >
+                        <XCircle size={18} strokeWidth={2.5} />
+                    </button>
+                </div>
+
+            </header>
+
+            {/* MAIN CONTENT AREA */}
+            <div style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex' }}>
+
+                {/* HISTORY SIDEBAR OVERLAY */}
+                <div className="glass-panel" style={{
+                    position: 'absolute',
+                    top: 0, left: 0, bottom: 0,
+                    width: '300px',
+                    background: 'var(--bg-secondary)',
+                    borderRight: '1px solid var(--border-color)',
+                    transform: showHistory ? 'translateX(0)' : 'translateX(-100%)',
+                    transition: 'transform 0.3s ease',
+                    zIndex: 20,
+                    display: 'flex', flexDirection: 'column', padding: '1rem',
+                    boxShadow: '4px 0 15px rgba(0,0,0,0.5)'
+                }}>
+                    <h3 style={{ marginTop: 0 }}>History</h3>
+                    <div style={{ overflowY: 'auto', flex: 1 }}>
+                        {historyFiles.map(file => (
+                            <div key={file.filename} onClick={() => loadReport(file.filename)} style={{ padding: '0.75rem', cursor: 'pointer', borderBottom: '1px solid var(--border-color)', marginBottom: '0.5rem', borderRadius: '4px', background: 'var(--bg-primary)' }}>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{file.date}</div>
+                                <div style={{ fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-primary)' }}>{file.filename.split('_')[1]}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* CONTENT SWAP SWITCH */}
+                {activeTab === 'dashboard' ? (
+                    /* --- DASHBOARD VIEW --- */
+                    /* --- DASHBOARD VIEW --- */
+                    <div style={{
+                        flex: 1,
+                        display: 'grid',
+                        gridTemplateRows: '1fr minmax(180px, 30vh)',
+                        rowGap: '1rem',
+                        overflow: 'hidden'
+                    }}>
+
+                        {/* SCROLLABLE STATS & CHARTS */}
+                        <div style={{ overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+
+                            {/* Top Stats Row */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem', flexShrink: 0 }}>
+                                <StatCard 
+                                    icon={<Zap />} 
+                                    label="Total Runs" 
+                                    value={totalRuns} 
+                                    color="var(--accent-primary)" 
+                                    subtitle={status === 'running' ? 'In progress...' : 'Completed'}
+                                />
+                                <StatCard 
+                                    icon={<TrendingUp />} 
+                                    label="Avg Score" 
+                                    value={avgScore} 
+                                    unit="/ 10" 
+                                    color="var(--accent-secondary)" 
+                                    subtitle={avgScore >= 8 ? 'Excellent' : avgScore >= 5 ? 'Good' : 'Needs work'}
+                                />
+                                <StatCard 
+                                    icon={<Timer />} 
+                                    label="Avg Duration" 
+                                    value={avgDuration} 
+                                    unit="s" 
+                                    color="var(--accent-primary)" 
+                                    subtitle={avgDuration > 60 ? 'Slow' : 'Fast'}
+                                />
+                            </div>
+
+                            {/* Middle Section: Chart & List */}
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                                gap: '1rem',
+                                minHeight: '300px',
+                                flex: 1
+                            }}>
+                                <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                                        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', fontFamily: "'Syne', sans-serif" }}>Performance Metrics</h3>
+                                        <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem' }}>
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                                <span style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--accent-secondary)' }}></span>
+                                                Duration
+                                            </span>
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                                <span style={{ width: 10, height: 3, borderRadius: 2, background: 'var(--accent-primary)' }}></span>
+                                                Score
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+                                        {results.length > 0 ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <ComposedChart data={results}>
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" />
+                                                    <XAxis dataKey="iteration" stroke="var(--text-secondary)" tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} />
+                                                    <YAxis
+                                                        yAxisId="left"
+                                                        stroke="var(--text-secondary)"
+                                                        tick={{ fill: 'var(--text-secondary)', fontSize: 12 }}
+                                                        label={{ value: 'Seconds', angle: -90, position: 'insideLeft', fill: 'var(--text-secondary)', fontSize: 12 }}
+                                                    />
+                                                    <YAxis
+                                                        yAxisId="right"
+                                                        orientation="right"
+                                                        domain={[0, 10]}
+                                                        stroke="var(--text-secondary)"
+                                                        tick={{ fill: 'var(--text-secondary)', fontSize: 12 }}
+                                                        label={{ value: 'Score', angle: 90, position: 'insideRight', fill: 'var(--text-secondary)', fontSize: 12 }}
+                                                    />
+                                                    <Tooltip
+                                                        formatter={(value, name, props) => {
+                                                            const taskLabel = props?.payload?.taskName || props?.payload?.task_name || '';
+                                                            const label = name === 'Duration (s)' ? 'Duration (s)' : 'Score';
+                                                            return [value, taskLabel ? `${label} • ${taskLabel}` : label];
+                                                        }}
+                                                        contentStyle={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', borderRadius: 8 }}
+                                                        itemStyle={{ color: 'var(--text-primary)', fontSize: 12 }}
+                                                    />
+                                                    <Bar
+                                                        yAxisId="left"
+                                                        dataKey="duration"
+                                                        fill="var(--accent-secondary)"
+                                                        name="Duration (s)"
+                                                        radius={[4, 4, 0, 0]}
+                                                        maxBarSize={32}
+                                                        opacity={0.9}
+                                                    />
+                                                    <Line
+                                                        yAxisId="right"
+                                                        type="monotone"
+                                                        dataKey="score"
+                                                        name="Score"
+                                                        stroke="var(--accent-primary)"
+                                                        strokeWidth={2.4}
+                                                        dot={{ r: 4, fill: 'var(--bg-secondary)', stroke: 'var(--accent-primary)', strokeWidth: 2 }}
+                                                        activeDot={{ r: 5, strokeWidth: 2, stroke: 'var(--accent-primary)' }}
+                                                    />
+                                                    <ReferenceLine yAxisId="right" y={8} stroke="var(--glass-border)" strokeDasharray="4 4" />
+                                                </ComposedChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <div style={{
+                                                position: 'absolute', inset: 0,
+                                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                                color: 'var(--text-secondary)', opacity: 0.5
+                                            }}>
+                                                <Activity size={48} style={{ marginBottom: '1rem', opacity: 0.5 }} />
+                                                <div>No performance data available</div>
+                                                <div style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>Run a benchmark to see metrics</div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', minHeight: '300px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                                        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', fontFamily: "'Syne', sans-serif" }}>Recent Results</h3>
+                                        {results.length > 0 && (
+                                            <span style={{ 
+                                                fontSize: '0.7rem', 
+                                                padding: '0.2rem 0.6rem', 
+                                                borderRadius: '999px', 
+                                                background: 'var(--glass-bg)', 
+                                                color: 'var(--text-secondary)',
+                                                fontWeight: 600,
+                                                border: '1px solid var(--glass-border)'
+                                            }}>
+                                                {results.length} runs
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div style={{ flex: 1, overflowY: 'auto' }}>
+                                        {results.slice().reverse().map((r, i) => (
+                                            <div key={i} onClick={() => setSelectedResult(r)} style={{
+                                                padding: '0.85rem 1rem',
+                                                marginBottom: '0.6rem',
+                                                background: 'var(--glass-bg)',
+                                                borderLeft: `3px solid ${r.score >= 8 ? 'var(--success, #22c55e)' : r.score >= 5 ? 'var(--text-secondary)' : 'var(--error, #ef4444)'}`,
+                                                borderRadius: '8px',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.2s ease',
+                                                border: '1px solid var(--glass-border)'
+                                            }}
+                                            onMouseEnter={e => {
+                                                e.currentTarget.style.background = 'var(--bg-tertiary, var(--bg-secondary))';
+                                                e.currentTarget.style.transform = 'translateX(4px)';
+                                            }}
+                                            onMouseLeave={e => {
+                                                e.currentTarget.style.background = 'var(--glass-bg)';
+                                                e.currentTarget.style.transform = 'translateX(0)';
+                                            }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ fontWeight: 700, fontSize: '0.9rem', fontFamily: "'Syne', sans-serif" }}>{r.taskName || `Task ${r.iteration}`}</span>
+                                                    <span style={{ 
+                                                        fontWeight: 800, 
+                                                        fontSize: '0.95rem',
+                                                        color: r.score >= 8 ? 'var(--success, #22c55e)' : r.score >= 5 ? 'var(--accent-primary)' : 'var(--error, #ef4444)',
+                                                        fontFamily: "'JetBrains Mono', monospace"
+                                                    }}>{r.score}<span style={{ opacity: 0.5, fontWeight: 400 }}>/10</span></span>
+                                                </div>
+                                                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '8px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                                    <span style={{ fontFamily: "'JetBrains Mono', monospace", opacity: 0.8 }}>{r.duration}s</span>
+                                                    <span style={{
+                                                        padding: '3px 10px',
+                                                        borderRadius: '999px',
+                                                        background: 'var(--glass-bg)',
+                                                        color: 'var(--text-secondary)',
+                                                        fontWeight: 700,
+                                                        fontSize: '0.68rem',
+                                                        letterSpacing: '0.03em',
+                                                        textTransform: 'uppercase',
+                                                        border: '1px solid var(--glass-border)'
+                                                    }}>{r.difficulty || 'Medium'}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {results.length === 0 && <div style={{ color: 'var(--text-secondary)', textAlign: 'center', marginTop: '2rem' }}>No runs yet</div>}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* DOCKED CONSOLE - fits viewport */}
+                        <div style={{ display: 'flex', flexDirection: 'column', padding: '0 1rem 1rem 1rem', minHeight: 0 }}>
+                            <Console logs={logs} style={{ flex: 1, minHeight: 0, borderRadius: '12px', overflow: 'hidden' }} />
+                        </div>
+                    </div>
+                ) : activeTab === 'creator' ? (
+                    /* --- CREATOR VIEW --- */
+                    <div style={{ flex: 1, padding: '2rem', display: 'flex', justifyContent: 'center', overflowY: 'auto' }}>
+                        <div className="glass-panel" style={{ width: '100%', maxWidth: '800px', padding: '2rem' }}>
+                            <h2 style={{ marginTop: 0, marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>Create Custom Benchmark Task</h2>
+
+                            <form onSubmit={handleCreateTask} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Task Name</label>
+                                    <input
+                                        type="text"
+                                        value={newTask.name}
+                                        onChange={e => setNewTask({ ...newTask, name: e.target.value })}
+                                        placeholder="e.g., Analyze Financial Report"
+                                        required
+                                        style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Difficulty</label>
+                                    <select
+                                        value={newTask.difficulty}
+                                        onChange={e => setNewTask({ ...newTask, difficulty: e.target.value })}
+                                        style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                                    >
+                                        <option value="Easy">Easy</option>
+                                        <option value="Medium">Medium</option>
+                                        <option value="Hard">Hard</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Prompt / Instructions</label>
+                                    <textarea
+                                        value={newTask.prompt}
+                                        onChange={e => setNewTask({ ...newTask, prompt: e.target.value })}
+                                        placeholder="Describe the task for the agent..."
+                                        required
+                                        rows={6}
+                                        style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', resize: 'vertical', fontFamily: 'inherit' }}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Expected Criteria (one per line)</label>
+                                    <textarea
+                                        value={newTask.expected_criteria}
+                                        onChange={e => setNewTask({ ...newTask, expected_criteria: e.target.value })}
+                                        placeholder="Must contain X&#10;Must not do Y&#10;Result should be Z"
+                                        required
+                                        rows={4}
+                                        style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', resize: 'vertical' }}
+                                    />
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Used for automated evaluation score.</div>
+                                </div>
+
+                                <button type="submit" className="btn-primary" disabled={createStatus === 'submitting'} style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
+                                    {createStatus === 'submitting' ? <Activity className="animate-pulse" /> : <CheckCircle />}
+                                    {createStatus === 'submitting' ? 'Creating...' : 'Create Task'}
+                                </button>
+
+                                {createStatus && createStatus !== 'submitting' && (
+                                    <div style={{
+                                        padding: '1rem',
+                                        borderRadius: '8px',
+                                        background: createStatus === 'success' ? 'rgba(0, 255, 204, 0.1)' : 'rgba(255, 77, 77, 0.1)',
+                                        color: createStatus === 'success' ? 'var(--accent-primary)' : '#ff4d4d',
+                                        border: `1px solid ${createStatus === 'success' ? 'var(--accent-primary)' : '#ff4d4d'}`
+                                    }}>
+                                        {createStatus === 'success' ? 'Task created successfully! Switch to Dashboard to run it.' : createStatus}
+                                    </div>
+                                )}
+                            </form>
+                        </div>
+                    </div>
+                ) : activeTab === 'compare' ? (
+                    /* --- COMPARE VIEW --- */
+                    <div style={{ flex: 1, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto' }}>
+                        
+                        {/* Header with stats */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                            <div>
+                                <h2 style={{ margin: 0, fontFamily: "'Syne', sans-serif", fontSize: '1.5rem' }}>
+                                    Benchmark Comparison
+                                </h2>
+                                <p style={{ margin: '0.5rem 0 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                                    Select benchmarks to compare performance across runs
+                                </p>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                                <span style={{ 
+                                    padding: '0.5rem 1rem', 
+                                    background: 'var(--glass-bg)', 
+                                    borderRadius: '8px',
+                                    fontSize: '0.85rem',
+                                    border: '1px solid var(--glass-border)'
+                                }}>
+                                    {compareData.length} benchmarks • {selectedBenchmarks.length} selected
+                                </span>
+                                {selectedBenchmarks.length > 0 && (
+                                    <button
+                                        onClick={() => setSelectedBenchmarks([])}
+                                        style={{
+                                            padding: '0.5rem 1rem',
+                                            background: 'rgba(239, 68, 68, 0.1)',
+                                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                                            borderRadius: '8px',
+                                            color: 'var(--error, #ef4444)',
+                                            cursor: 'pointer',
+                                            fontSize: '0.85rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.4rem'
+                                        }}
+                                    >
+                                        <Trash2 size={14} /> Clear Selection
+                                    </button>
+                                )}
+                                <button
+                                    onClick={loadAllBenchmarks}
+                                    disabled={loadingCompare}
+                                    style={{
+                                        padding: '0.5rem 1rem',
+                                        background: 'var(--glass-bg)',
+                                        border: '1px solid var(--glass-border)',
+                                        borderRadius: '8px',
+                                        color: 'var(--text-primary)',
+                                        cursor: 'pointer',
+                                        fontSize: '0.85rem'
+                                    }}
+                                >
+                                    {loadingCompare ? 'Loading...' : '↻ Refresh'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Comparison Charts - Only show when benchmarks selected */}
+                        {selectedBenchmarks.length >= 2 && (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1rem' }}>
+                                {/* Score Comparison */}
+                                <div className="glass-panel" style={{ padding: '1.25rem' }}>
+                                    <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 700, fontFamily: "'Syne', sans-serif" }}>
+                                        Average Score Comparison
+                                    </h3>
+                                    <div style={{ height: '250px' }}>
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={getComparisonChartData()}>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" />
+                                                <XAxis dataKey="name" stroke="var(--text-secondary)" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} />
+                                                <YAxis domain={[0, 10]} stroke="var(--text-secondary)" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} />
+                                                <Tooltip 
+                                                    contentStyle={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', borderRadius: 8 }}
+                                                    formatter={(value, name, props) => [value, props.payload.fullName]}
+                                                />
+                                                <Bar dataKey="avgScore" fill="var(--accent-primary)" radius={[4, 4, 0, 0]} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+
+                                {/* Duration Comparison */}
+                                <div className="glass-panel" style={{ padding: '1.25rem' }}>
+                                    <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 700, fontFamily: "'Syne', sans-serif" }}>
+                                        Average Duration Comparison
+                                    </h3>
+                                    <div style={{ height: '250px' }}>
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={getComparisonChartData()}>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" />
+                                                <XAxis dataKey="name" stroke="var(--text-secondary)" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} />
+                                                <YAxis stroke="var(--text-secondary)" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} />
+                                                <Tooltip 
+                                                    contentStyle={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', borderRadius: 8 }}
+                                                    formatter={(value, name, props) => [`${value}s`, props.payload.fullName]}
+                                                />
+                                                <Bar dataKey="avgDuration" fill="var(--accent-secondary)" radius={[4, 4, 0, 0]} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+
+                                {/* Success Rate Comparison */}
+                                <div className="glass-panel" style={{ padding: '1.25rem' }}>
+                                    <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 700, fontFamily: "'Syne', sans-serif" }}>
+                                        Success Rate Comparison
+                                    </h3>
+                                    <div style={{ height: '250px' }}>
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={getComparisonChartData()}>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" />
+                                                <XAxis dataKey="name" stroke="var(--text-secondary)" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} />
+                                                <YAxis domain={[0, 100]} stroke="var(--text-secondary)" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} />
+                                                <Tooltip 
+                                                    contentStyle={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', borderRadius: 8 }}
+                                                    formatter={(value, name, props) => [`${value}%`, props.payload.fullName]}
+                                                />
+                                                <Bar dataKey="successRate" fill="var(--success, #22c55e)" radius={[4, 4, 0, 0]} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+
+                                {/* Combined Metrics */}
+                                <div className="glass-panel" style={{ padding: '1.25rem' }}>
+                                    <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 700, fontFamily: "'Syne', sans-serif" }}>
+                                        Combined Metrics
+                                    </h3>
+                                    <div style={{ height: '250px' }}>
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <ComposedChart data={getComparisonChartData()}>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" />
+                                                <XAxis dataKey="name" stroke="var(--text-secondary)" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} />
+                                                <YAxis yAxisId="left" stroke="var(--text-secondary)" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} />
+                                                <YAxis yAxisId="right" orientation="right" domain={[0, 10]} stroke="var(--text-secondary)" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} />
+                                                <Tooltip 
+                                                    contentStyle={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', borderRadius: 8 }}
+                                                />
+                                                <Legend />
+                                                <Bar yAxisId="left" dataKey="avgDuration" name="Duration (s)" fill="var(--accent-secondary)" radius={[4, 4, 0, 0]} />
+                                                <Line 
+                                                    yAxisId="right" 
+                                                    type="monotone" 
+                                                    dataKey="avgScore" 
+                                                    name="Score" 
+                                                    stroke="var(--accent-primary)" 
+                                                    strokeWidth={2} 
+                                                    dot={(props) => {
+                                                        const { cx, cy, payload } = props;
+                                                        const score = payload.avgScore;
+                                                        let color = '#f87171'; // red for low scores
+                                                        if (score >= 8) {
+                                                            color = '#4ade80'; // green for high scores
+                                                        } else if (score >= 5) {
+                                                            color = '#fbbf24'; // yellow for medium scores
+                                                        }
+                                                        return (
+                                                            <circle 
+                                                                cx={cx} 
+                                                                cy={cy} 
+                                                                r={6} 
+                                                                fill={color} 
+                                                                stroke="#0d0d0d" 
+                                                                strokeWidth={2}
+                                                                style={{ filter: `drop-shadow(0 0 4px ${color})` }}
+                                                            />
+                                                        );
+                                                    }}
+                                                />
+                                            </ComposedChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {selectedBenchmarks.length === 1 && (
+                            <div className="glass-panel" style={{ padding: '2rem', textAlign: 'center' }}>
+                                <BarChart3 size={48} style={{ opacity: 0.3, marginBottom: '1rem' }} />
+                                <p style={{ color: 'var(--text-secondary)' }}>Select at least 2 benchmarks to compare</p>
+                            </div>
+                        )}
+
+                        {/* Benchmarks Table */}
+                        <div className="glass-panel" style={{ padding: '1.25rem', flex: 1, display: 'flex', flexDirection: 'column', minHeight: '300px' }}>
+                            <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 700, fontFamily: "'Syne', sans-serif" }}>
+                                All Benchmarks
+                            </h3>
+                            
+                            {loadingCompare ? (
+                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Activity className="animate-pulse" size={32} style={{ opacity: 0.5 }} />
+                                </div>
+                            ) : (
+                                <div style={{ flex: 1, overflowY: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '2px solid var(--glass-border)' }}>
+                                                <th style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--text-secondary)', fontWeight: 600, width: '40px' }}>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={selectedBenchmarks.length === compareData.length && compareData.length > 0}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setSelectedBenchmarks(compareData.map(b => b.filename));
+                                                            } else {
+                                                                setSelectedBenchmarks([]);
+                                                            }
+                                                        }}
+                                                        style={{ accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
+                                                    />
+                                                </th>
+                                                <th style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--text-secondary)', fontWeight: 600 }}>Date</th>
+                                                <th style={{ padding: '0.75rem', textAlign: 'left', color: 'var(--text-secondary)', fontWeight: 600 }}>Model</th>
+                                                <th style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600 }}>Difficulty</th>
+                                                <th style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600 }}>Runs</th>
+                                                <th style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600 }}>Avg Score</th>
+                                                <th style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600 }}>Avg Duration</th>
+                                                <th style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600 }}>Success Rate</th>
+                                                <th style={{ padding: '0.75rem', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600 }}>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {compareData.map((benchmark, idx) => (
+                                                <tr 
+                                                    key={benchmark.filename}
+                                                    style={{ 
+                                                        borderBottom: '1px solid var(--glass-border)',
+                                                        background: selectedBenchmarks.includes(benchmark.filename) ? 'var(--glass-bg)' : 'transparent',
+                                                        transition: 'background 0.2s ease'
+                                                    }}
+                                                    onMouseEnter={e => {
+                                                        if (!selectedBenchmarks.includes(benchmark.filename)) {
+                                                            e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
+                                                        }
+                                                    }}
+                                                    onMouseLeave={e => {
+                                                        if (!selectedBenchmarks.includes(benchmark.filename)) {
+                                                            e.currentTarget.style.background = 'transparent';
+                                                        }
+                                                    }}
+                                                >
+                                                    <td style={{ padding: '0.75rem' }}>
+                                                        <input 
+                                                            type="checkbox"
+                                                            checked={selectedBenchmarks.includes(benchmark.filename)}
+                                                            onChange={() => toggleBenchmarkSelection(benchmark.filename)}
+                                                            style={{ accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
+                                                        />
+                                                    </td>
+                                                    <td style={{ padding: '0.75rem', color: 'var(--text-primary)' }}>
+                                                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.8rem' }}>{benchmark.date}</span>
+                                                    </td>
+                                                    <td style={{ padding: '0.75rem', color: 'var(--text-primary)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        <span title={benchmark.model} style={{ fontWeight: 600 }}>{formatModelName(benchmark.model)}</span>
+                                                    </td>
+                                                    <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                                                        <span style={{
+                                                            padding: '0.25rem 0.6rem',
+                                                            borderRadius: '999px',
+                                                            fontSize: '0.7rem',
+                                                            fontWeight: 700,
+                                                            textTransform: 'uppercase',
+                                                            background: benchmark.difficulty === 'Hard' ? 'rgba(239, 68, 68, 0.2)' : 
+                                                                       benchmark.difficulty === 'Medium' ? 'rgba(251, 191, 36, 0.2)' : 'rgba(34, 197, 94, 0.2)',
+                                                            color: benchmark.difficulty === 'Hard' ? '#ef4444' : 
+                                                                   benchmark.difficulty === 'Medium' ? '#fbbf24' : '#22c55e',
+                                                            border: `1px solid ${benchmark.difficulty === 'Hard' ? 'rgba(239, 68, 68, 0.3)' : 
+                                                                                 benchmark.difficulty === 'Medium' ? 'rgba(251, 191, 36, 0.3)' : 'rgba(34, 197, 94, 0.3)'}`
+                                                        }}>
+                                                            {benchmark.difficulty}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '0.75rem', textAlign: 'center', fontFamily: "'JetBrains Mono', monospace" }}>
+                                                        {benchmark.totalRuns}
+                                                    </td>
+                                                    <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                                                        <span style={{
+                                                            fontWeight: 700,
+                                                            fontFamily: "'JetBrains Mono', monospace",
+                                                            color: benchmark.avgScore >= 8 ? 'var(--success, #22c55e)' : 
+                                                                   benchmark.avgScore >= 5 ? 'var(--accent-primary)' : 'var(--error, #ef4444)'
+                                                        }}>
+                                                            {benchmark.avgScore}<span style={{ opacity: 0.5 }}>/10</span>
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '0.75rem', textAlign: 'center', fontFamily: "'JetBrains Mono', monospace" }}>
+                                                        {benchmark.avgDuration}s
+                                                    </td>
+                                                    <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                                                        <span style={{
+                                                            fontWeight: 700,
+                                                            fontFamily: "'JetBrains Mono', monospace",
+                                                            color: benchmark.successRate >= 80 ? 'var(--success, #22c55e)' : 
+                                                                   benchmark.successRate >= 50 ? 'var(--accent-primary)' : 'var(--error, #ef4444)'
+                                                        }}>
+                                                            {benchmark.successRate}%
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                                                        <button
+                                                            onClick={() => { loadReport(benchmark.filename); setActiveTab('dashboard'); }}
+                                                            style={{
+                                                                padding: '0.4rem 0.8rem',
+                                                                background: 'var(--glass-bg)',
+                                                                border: '1px solid var(--glass-border)',
+                                                                borderRadius: '6px',
+                                                                color: 'var(--text-primary)',
+                                                                cursor: 'pointer',
+                                                                fontSize: '0.75rem',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '0.3rem'
+                                                            }}
+                                                        >
+                                                            <Eye size={12} /> View
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    {compareData.length === 0 && !loadingCompare && (
+                                        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                                            No benchmarks found. Run some benchmarks first!
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : null}
+
+            </div>
+
+            {/* Result Detail Modal */}
+            {
+                selectedResult && (
+                    <div style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+                    }} onClick={() => setSelectedResult(null)}>
+                        <div style={{
+                            background: 'var(--bg-secondary)',
+                            border: `1px solid var(--border-color)`,
+                            borderRadius: '12px',
+                            width: '90%', maxWidth: '800px', maxHeight: '85vh', overflow: 'hidden',
+                            display: 'flex', flexDirection: 'column', boxShadow: '0 20px 50px rgba(0,0,0,0.35)'
+                        }} onClick={e => e.stopPropagation()}>
+                            <div style={{ padding: '1rem', borderBottom: `1px solid var(--border-color)`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-primary)' }}>
+                                <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Result Detail (Run #{selectedResult.iteration})</h3>
+                                <button onClick={() => { console.log('selectedResult:', selectedResult); setSelectedResult(null); }} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                                    <XCircle />
+                                </button>
+                            </div>
+                            <div style={{ padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.5rem', background: 'var(--bg-secondary)' }}>
+
+                                {/* Score & Reason */}
+                                <div style={{ padding: '1rem', background: 'rgba(0,0,0,0.03)', borderRadius: '8px', borderLeft: `4px solid ${selectedResult.success ? 'var(--accent-primary)' : '#ff4d4d'}` }}>
+                                    <div style={{ fontWeight: 'bold', marginBottom: '0.5rem', color: selectedResult.success ? 'var(--accent-primary)' : '#ff4d4d' }}>
+                                        {selectedResult.success ? 'PASSED' : 'FAILED'} (Score: {selectedResult.score}/10)
+                                    </div>
+                                    <div style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                                        " {selectedResult.reason} "
+                                    </div>
+
+                                    {/* DEBUG: Show if token_metrics exists */}
+                                    {!selectedResult.token_metrics && (
+                                        <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'orange' }}>
+                                            ⚠️ No token metrics in this result (run with updated backend)
+                                        </div>
+                                    )}
+
+                                    {/* Token Metrics */}
+                                    {selectedResult.token_metrics && Object.keys(selectedResult.token_metrics).length > 0 && (
+                                        <div style={{
+                                            marginTop: '0.85rem',
+                                            display: 'flex',
+                                            flexWrap: 'wrap',
+                                            gap: '0.5rem',
+                                            alignItems: 'center'
+                                        }}>
+                                            {typeof selectedResult.token_metrics.prompt_tokens === 'number' && (
+                                                <span style={{
+                                                    fontFamily: "'JetBrains Mono', monospace",
+                                                    fontSize: '0.8rem',
+                                                    padding: '0.25rem 0.5rem',
+                                                    borderRadius: '999px',
+                                                    border: '1px solid var(--border-color)',
+                                                    color: 'var(--text-secondary)'
+                                                }}>
+                                                    prompt: {selectedResult.token_metrics.prompt_tokens}
+                                                </span>
+                                            )}
+                                            {typeof selectedResult.token_metrics.completion_tokens === 'number' && (
+                                                <span style={{
+                                                    fontFamily: "'JetBrains Mono', monospace",
+                                                    fontSize: '0.8rem',
+                                                    padding: '0.25rem 0.5rem',
+                                                    borderRadius: '999px',
+                                                    border: '1px solid var(--border-color)',
+                                                    color: 'var(--text-secondary)'
+                                                }}>
+                                                    completion: {selectedResult.token_metrics.completion_tokens}
+                                                </span>
+                                            )}
+                                            {typeof selectedResult.token_metrics.total_tokens === 'number' && (
+                                                <span style={{
+                                                    fontFamily: "'JetBrains Mono', monospace",
+                                                    fontSize: '0.8rem',
+                                                    padding: '0.25rem 0.5rem',
+                                                    borderRadius: '999px',
+                                                    border: '1px solid var(--border-color)',
+                                                    color: 'var(--text-secondary)'
+                                                }}>
+                                                    total: {selectedResult.token_metrics.total_tokens}
+                                                </span>
+                                            )}
+                                            {typeof selectedResult.token_metrics.reasoning_tokens === 'number' && (
+                                                <span style={{
+                                                    fontFamily: "'JetBrains Mono', monospace",
+                                                    fontSize: '0.8rem',
+                                                    padding: '0.25rem 0.5rem',
+                                                    borderRadius: '999px',
+                                                    border: '1px solid var(--border-color)',
+                                                    color: 'var(--text-secondary)'
+                                                }}>
+                                                    reasoning: {selectedResult.token_metrics.reasoning_tokens}
+                                                </span>
+                                            )}
+                                            {typeof selectedResult.token_metrics.cached_tokens === 'number' && (
+                                                <span style={{
+                                                    fontFamily: "'JetBrains Mono', monospace",
+                                                    fontSize: '0.8rem',
+                                                    padding: '0.25rem 0.5rem',
+                                                    borderRadius: '999px',
+                                                    border: '1px solid var(--border-color)',
+                                                    color: 'var(--text-secondary)'
+                                                }}>
+                                                    cached: {selectedResult.token_metrics.cached_tokens}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Prompt Display */}
+                                <div>
+                                    <h4 style={{ marginTop: 0, marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Prompt</h4>
+                                    <div style={{
+                                        background: 'var(--bg-primary)', padding: '1rem', borderRadius: '8px',
+                                        color: 'var(--text-primary)', fontSize: '0.9rem', border: `1px solid var(--border-color)`,
+                                        whiteSpace: 'pre-wrap', fontFamily: 'monospace'
+                                    }}>
+                                        {selectedResult.prompt || "Prompt not available."}
+                                    </div>
+                                </div>
+
+                                {/* Full Output */}
+                                <div>
+                                    <h4 style={{ marginTop: 0, color: 'var(--text-secondary)' }}>Model Output</h4>
+                                    <div style={{
+                                        background: 'var(--bg-primary)', padding: '1.5rem', borderRadius: '8px',
+                                        overflowX: 'auto', color: 'var(--text-primary)', fontSize: '0.9rem',
+                                        border: `1px solid var(--border-color)`
+                                    }}>
+                                        <ReactMarkdown
+                                            remarkPlugins={[remarkGfm]}
+                                            components={{
+                                                code({ node, inline, className, children, ...props }) {
+                                                    const match = /language-(\w+)/.exec(className || '')
+                                                    return !inline && match ? (
+                                                        <div style={{ background: 'var(--bg-secondary)', padding: '0.5rem', borderRadius: '4px', border: `1px solid var(--border-color)`, overflow: 'auto' }}>
+                                                            <code className={className} {...props}>
+                                                                {children}
+                                                            </code>
+                                                        </div>
+                                                    ) : (
+                                                        <code className={className} style={{ background: 'rgba(0,0,0,0.08)', padding: '0.1rem 0.3rem', borderRadius: '3px' }} {...props}>
+                                                            {children}
+                                                        </code>
+                                                    )
+                                                }
+                                            }}
+                                        >
+                                            {selectedResult.output}
+                                        </ReactMarkdown>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Task Preview Modal */}
+            {
+                showTaskPreview && (
+                    <div style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+                    }} onClick={() => setShowTaskPreview(false)}>
+                        <div style={{
+                            background: 'var(--bg-secondary)',
+                            border: `1px solid var(--border-color)`,
+                            borderRadius: '12px',
+                            width: '92%', maxWidth: '920px', maxHeight: '85vh', overflow: 'hidden',
+                            display: 'flex', flexDirection: 'column', boxShadow: '0 20px 50px rgba(0,0,0,0.35)'
+                        }} onClick={e => e.stopPropagation()}>
+                            <div style={{
+                                padding: '1rem',
+                                borderBottom: `1px solid var(--border-color)`,
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                background: 'var(--bg-primary)'
+                            }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                    <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Selected task preview</h3>
+                                    <div style={{
+                                        fontFamily: "'JetBrains Mono', monospace",
+                                        fontSize: '0.78rem',
+                                        color: 'var(--text-secondary)'
+                                    }}>
+                                        {selectedTaskDetails?.id || selectedTask}
+                                        {selectedTaskDetails?.difficulty ? ` • ${selectedTaskDetails.difficulty}` : ''}
+                                        {selectedTaskDetails?.category ? ` • ${selectedTaskDetails.category}` : ''}
+                                    </div>
+                                </div>
+                                <button onClick={() => setShowTaskPreview(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                                    <XCircle />
+                                </button>
+                            </div>
+
+                            <div style={{ padding: '1.25rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg-secondary)' }}>
+                                {selectedTaskDetailsStatus === 'loading' && (
+                                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>Loading task details…</div>
+                                )}
+
+                                {selectedTaskDetailsStatus === 'error' && (
+                                    <div style={{ color: 'var(--error, #ef4444)', fontSize: '0.95rem' }}>
+                                        Couldn’t load task details. Is the backend running?
+                                    </div>
+                                )}
+
+                                {selectedTaskDetailsStatus === 'loaded' && selectedTaskDetails && (
+                                    <>
+                                        <div style={{ fontWeight: 800, color: 'var(--text-primary)' }}>
+                                            {selectedTaskDetails.name}
+                                        </div>
+
+                                        <div>
+                                            <div style={{ marginBottom: '0.4rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Prompt</div>
+                                            <div style={{
+                                                background: 'var(--bg-primary)', padding: '1rem', borderRadius: '10px',
+                                                color: 'var(--text-primary)', fontSize: '0.9rem', border: `1px solid var(--border-color)`,
+                                                whiteSpace: 'pre-wrap', fontFamily: "'JetBrains Mono', monospace"
+                                            }}>
+                                                {selectedTaskDetails.prompt || 'Prompt not available.'}
+                                            </div>
+                                        </div>
+
+                                        {Array.isArray(selectedTaskDetails.expected_criteria) && selectedTaskDetails.expected_criteria.length > 0 && (
+                                            <div>
+                                                <div style={{ marginBottom: '0.4rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Expected criteria</div>
+                                                <ul style={{ margin: 0, paddingLeft: '1.2rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                                                    {selectedTaskDetails.expected_criteria.map((c, idx) => (
+                                                        <li key={idx} style={{ marginBottom: '0.25rem' }}>{c}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+        </div>
+    );
+};
+
+const StatCard = ({ icon, label, value, unit, color, subtitle }) => (
+    <div className="glass-panel stat-card" style={{ 
+        padding: '1.5rem 1.75rem', 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '1.25rem',
+        position: 'relative',
+        overflow: 'hidden'
+    }}>
+        {/* Subtle top accent bar */}
+        <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '2px',
+            background: 'var(--accent-primary)',
+            opacity: 0.3
+        }} />
+        
+        {/* Icon container */}
+        <div style={{ 
+            padding: '14px', 
+            background: 'var(--glass-bg)',
+            borderRadius: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: '1px solid var(--glass-border)'
+        }}>
+            {React.cloneElement(icon, { size: 26, color: 'var(--text-secondary)', strokeWidth: 2 })}
+        </div>
+        
+        <div style={{ flex: 1 }}>
+            <div style={{ 
+                color: 'var(--text-secondary)', 
+                fontSize: '0.72rem', 
+                textTransform: 'uppercase', 
+                letterSpacing: '0.08em',
+                fontWeight: 600,
+                marginBottom: '4px'
+            }}>{label}</div>
+            <div style={{ 
+                fontSize: '2rem', 
+                fontWeight: 800,
+                fontFamily: "'Syne', sans-serif",
+                letterSpacing: '-0.03em',
+                lineHeight: 1,
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: '0.3rem'
+            }}>
+                <span style={{ color: 'var(--text-primary)' }}>{value}</span>
+                {unit && <span style={{ fontSize: '0.9rem', color: 'var(--text-muted, var(--text-secondary))', fontWeight: 500, opacity: 0.6 }}>{unit}</span>}
+            </div>
+            {subtitle && (
+                <div style={{ 
+                    fontSize: '0.7rem', 
+                    color: 'var(--text-muted)',
+                    marginTop: '6px',
+                    fontWeight: 600
+                }}>{subtitle}</div>
+            )}
+        </div>
+    </div>
+);
