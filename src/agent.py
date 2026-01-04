@@ -109,7 +109,7 @@ class BenchmarkAgent:
 
         return Agent(
             model=model,
-            description=f"You are an AI agent adopting the persona: {role.name}.",
+            description=f"You are an AI agent operating in the role: {role.name}.",
             instructions=[
                 "Reliability checkpoints (follow strictly):",
                 "- Do not invent facts, numbers, quotes, code results, file contents, or sources.",

@@ -487,7 +487,7 @@ export const ChatInterface = ({ language = 'english' }) => {
                         <h3 style={{ margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>Agent Settings</h3>
 
                         <div className="form-group" style={{ marginBottom: '1rem' }}>
-                            <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Persona</label>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Role / Working Mode</label>
                             <select
                                 value={selectedRole}
                                 onChange={(e) => setSelectedRole(e.target.value)}

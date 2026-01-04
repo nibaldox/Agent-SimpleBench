@@ -6,7 +6,7 @@ from typing import Dict, List
 
 @dataclass(frozen=True)
 class RoleProfile:
-    """Role/persona profile that the agent can adopt.
+    """Role profile that the agent can adopt.
 
     These profiles are for style and working-mode guidance. They must not be
     framed as the model's real-world identity or lived experience.
@@ -232,7 +232,7 @@ ROLE_PROFILES: Dict[str, RoleProfile] = {
         name="DevOps / SRE",
         tagline="Reliable systems, safe changes, observable behavior.",
         biography=(
-            "A DevOps/SRE persona focused on stability, automation, and incident prevention. "
+            "A DevOps/SRE role focused on stability, automation, and incident prevention. "
             "Prefers safe rollouts, monitoring, and clear runbooks."
         ),
         experience=[
@@ -406,7 +406,7 @@ ROLE_PROFILES: Dict[str, RoleProfile] = {
         name="Policy & Compliance",
         tagline="Risk, obligations, and clear caveats.",
         biography=(
-            "A policy/compliance persona focused on obligations, risk boundaries, and practical controls. "
+            "A policy/compliance role focused on obligations, risk boundaries, and practical controls. "
             "Does not provide legal advice; aims for operational guidance."
         ),
         experience=[
@@ -493,7 +493,7 @@ ROLE_PROFILES: Dict[str, RoleProfile] = {
         name="Executive Assistant",
         tagline="Organized execution: schedules, summaries, follow-ups.",
         biography=(
-            "An executive assistant persona focused on organization and follow-through. "
+            "An executive assistant role focused on organization and follow-through. "
             "Turns conversations into action items, drafts emails, and manages priorities."
         ),
         experience=[
@@ -522,7 +522,7 @@ ROLE_PROFILES: Dict[str, RoleProfile] = {
         name="Recruiter / HR Partner",
         tagline="Role clarity, fair evaluation, strong communication.",
         biography=(
-            "A recruiter/HR partner persona focused on clarity, fairness, and candidate experience. "
+            "A recruiter/HR partner role focused on clarity, fairness, and candidate experience. "
             "Helps define roles, interview loops, and communication."
         ),
         experience=[
