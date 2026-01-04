@@ -43,11 +43,20 @@ TASKS = [
         name="GPU Pricing Research",
         prompt=(
             "Research the estimated market price of an NVIDIA H100 80GB GPU in 2024/2025.\n\n"
-            "Requirements (follow exactly):\n"
-            "1) Give a short summary (max 3 bullets).\n"
-            "2) Provide a table with columns: Seller/Source | Price | Currency | Date (as stated) | URL.\n"
-            "3) Add a 'Sources' section with at least 2 distinct http(s) URLs.\n"
-            "4) If you cannot verify with sources, write 'Insufficient evidence' and explain what you'd search next."
+            "Output format (use these section headers exactly):\n"
+            "Summary:\n"
+            "- <max 3 bullets>\n\n"
+            "Table:\n"
+            "| Seller/Source | Price | Currency | Date (as stated) | URL |\n"
+            "| --- | ---: | --- | --- | --- |\n"
+            "| ... | ... | ... | ... | ... |\n\n"
+            "Sources:\n"
+            "- https://...\n"
+            "- https://...\n\n"
+            "Rules:\n"
+            "- Provide at least 2 distinct http(s) source URLs in the Sources section.\n"
+            "- In the Sources section, put each URL on its own bullet line (no extra text on the same line).\n"
+            "- If you cannot verify with sources, write 'Insufficient evidence' and explain what you'd search next."
         ),
         expected_criteria=[
             "Mentions H100 and 80GB",
@@ -116,10 +125,19 @@ TASKS = [
         name="Nobel Prize 2024",
         prompt=(
             "Find the winners of the Nobel Prize in Physics (year 2024) and summarize the official citation/discovery.\n\n"
-            "Requirements:\n"
-            "- List the winner name(s) as bullet points.\n"
-            "- Provide a short paragraph describing the discovery/citation in plain language.\n"
-            "- Add a 'Sources' section with at least 2 http(s) URLs, and at least one must be from nobelprize.org.\n"
+            "Output format (use these section headers exactly):\n"
+            "Winners:\n"
+            "- <name>\n"
+            "- <name>\n\n"
+            "Citation summary:\n"
+            "<one short paragraph>\n\n"
+            "Sources:\n"
+            "- https://...\n"
+            "- https://...\n\n"
+            "Rules:\n"
+            "- Provide at least 2 distinct http(s) URLs in the Sources section.\n"
+            "- At least one URL must be from nobelprize.org.\n"
+            "- In the Sources section, put each URL on its own bullet line (no extra text on the same line).\n"
             "- If you cannot verify, explicitly say you could not verify with sources."
         ),
         expected_criteria=[
@@ -225,10 +243,19 @@ TASKS = [
             "Research the technical specs and target market for:\n"
             "- NVIDIA H200 Tensor Core GPU\n"
             "- NVIDIA RTX 500 Ada Generation Laptop GPU\n\n"
-            "Requirements:\n"
-            "- Provide a 2-row table with columns: Product | Target market | Memory bandwidth (with units or 'unknown') | Primary use cases.\n"
-            "- Add a 'Sources' section with at least 2 distinct http(s) URLs.\n"
-            "- If a spec is not verifiable, write 'unknown' and explain briefly."
+            "Output format (use these section headers exactly):\n"
+            "Table:\n"
+            "| Product | Target market | Memory bandwidth | Primary use cases |\n"
+            "| --- | --- | --- | --- |\n"
+            "| ... | ... | ... | ... |\n\n"
+            "Notes:\n"
+            "- If a spec is not verifiable, write 'unknown' and explain briefly.\n\n"
+            "Sources:\n"
+            "- https://...\n"
+            "- https://...\n\n"
+            "Rules:\n"
+            "- Provide at least 2 distinct http(s) URLs in the Sources section.\n"
+            "- In the Sources section, put each URL on its own bullet line (no extra text on the same line)."
         ),
         expected_criteria=[
             "Includes a table comparing both products",
@@ -283,9 +310,16 @@ TASKS = [
         name="AI Policy Brief with Sources",
         prompt=(
             "Find a recent government-level regulation or policy proposal on AI safety/transparency (any major economy) and summarize it.\n\n"
-            "Requirements:\n"
-            "- Provide 2-3 key points (bullets).\n"
-            "- Include a 'Sources' section with at least 1 http(s) URL.\n"
+            "Output format (use these section headers exactly):\n"
+            "Policy:\n"
+            "- <policy/regulation name>\n\n"
+            "Key points:\n"
+            "- <2-3 bullets>\n\n"
+            "Sources:\n"
+            "- https://...\n\n"
+            "Rules:\n"
+            "- Provide at least 1 http(s) URL in the Sources section.\n"
+            "- In the Sources section, put each URL on its own bullet line (no extra text on the same line).\n"
             "- If you are unsure about recency or exact title, explicitly state uncertainty and suggest the likely policy name (e.g., EU AI Act, US AI EO)."
         ),
         expected_criteria=[
@@ -379,8 +413,14 @@ TASKS = [
         name="AI Policy Brief: EU AI Act",
         prompt=(
             "Summarize 3 key obligations from the EU AI Act (e.g., risk tiers, transparency, biometric limits).\n"
-            "Include a 'Sources' section with at least 1 http(s) URL.\n"
-            "State uncertainty if exact article numbers are unclear."
+            "Output format:\n"
+            "- <3 bullets>\n\n"
+            "Sources:\n"
+            "- https://...\n\n"
+            "Rules:\n"
+            "- Provide at least 1 http(s) URL in the Sources section.\n"
+            "- In the Sources section, put each URL on its own bullet line (no extra text on the same line).\n"
+            "- State uncertainty if exact article numbers are unclear."
         ),
         expected_criteria=[
             "Mentions EU AI Act",
@@ -396,8 +436,14 @@ TASKS = [
         name="AI Policy Brief: US AI EO",
         prompt=(
             "Outline 2-3 key directives from the 2023 US AI Executive Order (safety evals, watermarking, reporting).\n"
-            "Include a 'Sources' section with at least 1 http(s) URL.\n"
-            "Note any uncertainty."
+            "Output format:\n"
+            "- <2-3 bullets>\n\n"
+            "Sources:\n"
+            "- https://...\n\n"
+            "Rules:\n"
+            "- Provide at least 1 http(s) URL in the Sources section.\n"
+            "- In the Sources section, put each URL on its own bullet line (no extra text on the same line).\n"
+            "- Note any uncertainty."
         ),
         expected_criteria=[
             "Mentions US AI Executive Order",
@@ -413,8 +459,14 @@ TASKS = [
         name="AI Policy Brief: UK/Frontier",
         prompt=(
             "Summarize a recent UK / Frontier AI safety statement or code-of-practice (e.g., Bletchley Declaration).\n"
-            "Provide 2-3 commitments and a 'Sources' section with at least 1 http(s) URL.\n"
-            "State uncertainty if details are unclear."
+            "Output format:\n"
+            "- <2-3 bullets>\n\n"
+            "Sources:\n"
+            "- https://...\n\n"
+            "Rules:\n"
+            "- Provide at least 1 http(s) URL in the Sources section.\n"
+            "- In the Sources section, put each URL on its own bullet line (no extra text on the same line).\n"
+            "- State uncertainty if details are unclear."
         ),
         expected_criteria=[
             "Mentions UK/Frontier or Bletchley",
@@ -430,8 +482,14 @@ TASKS = [
         name="AI Policy Brief: China Drafts",
         prompt=(
             "Summarize a Chinese AI content / generative AI regulation (e.g., deep synthesis rules).\n"
-            "Provide 2-3 controls and a 'Sources' section with at least 1 http(s) URL.\n"
-            "Note uncertainty if exact clause is unclear."
+            "Output format:\n"
+            "- <2-3 bullets>\n\n"
+            "Sources:\n"
+            "- https://...\n\n"
+            "Rules:\n"
+            "- Provide at least 1 http(s) URL in the Sources section.\n"
+            "- In the Sources section, put each URL on its own bullet line (no extra text on the same line).\n"
+            "- Note uncertainty if exact clause is unclear."
         ),
         expected_criteria=[
             "Mentions China/deep synthesis/generative rules",
@@ -447,8 +505,14 @@ TASKS = [
         name="AI Policy Brief: OECD/ISO",
         prompt=(
             "Summarize 2-3 principles from OECD AI guidelines or an ISO/IEC AI risk standard.\n"
-            "Include a 'Sources' section with at least 1 http(s) URL.\n"
-            "Acknowledge uncertainty if specific clause IDs are unknown."
+            "Output format:\n"
+            "- <2-3 bullets>\n\n"
+            "Sources:\n"
+            "- https://...\n\n"
+            "Rules:\n"
+            "- Provide at least 1 http(s) URL in the Sources section.\n"
+            "- In the Sources section, put each URL on its own bullet line (no extra text on the same line).\n"
+            "- Acknowledge uncertainty if specific clause IDs are unknown."
         ),
         expected_criteria=[
             "Mentions OECD or ISO/IEC AI risk standard",
