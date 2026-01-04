@@ -8,5 +8,6 @@ python-dotenv
 yfinance
 pypdf
 requests
+beautifulsoup4
 toon-format
 tiktoken

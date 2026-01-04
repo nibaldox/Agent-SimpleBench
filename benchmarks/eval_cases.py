@@ -23,8 +23,16 @@ TASKS = [
     BenchmarkTask(
         id="E002",
         name="Python Hello World",
-        prompt="Write a single Python print statement that prints 'Hello World'. Return ONLY that one line.",
-        expected_criteria=["print", "Hello World"],
+        prompt=(
+            "Write a Python script that prints 'Hello World'.\n"
+            "Return ONLY a single ```python``` code block and nothing else.\n"
+            "The script should be just a single print statement."
+        ),
+        expected_criteria=[
+            "Returns only one Python code block (no prose)",
+            "Contains exactly one print statement",
+            "Prints Hello World"
+        ],
         category="coding",
         difficulty="Easy"
     ),
@@ -138,7 +146,8 @@ TASKS = [
             "Imports bs4/BeautifulSoup",
             "Fetches example.com",
             "Extracts title tag",
-            "Error handling"
+            "Uses a timeout on the HTTP request",
+            "Catches requests.exceptions.RequestException"
         ],
         category="coding",
         difficulty="Hard"
@@ -313,11 +322,14 @@ TASKS = [
         id="N003",
         name="Code Refactor: Safe Rename",
         prompt=(
-            "You are given this Python snippet:\n\n"
+            "You are given this Python snippet:\n"
+            "```python\n"
             "def calc(a, b):\n"
             "    res = a + b\n"
-            "    return res\n\n"
-            "Refactor it to rename 'res' to 'total', keep behavior identical, and add a one-line docstring. Return only the code block."
+            "    return res\n"
+            "```\n\n"
+            "Refactor it to rename 'res' to 'total', keep behavior identical, and add a one-line docstring to the function.\n"
+            "Return ONLY a single ```python``` code block and nothing else."
         ),
         expected_criteria=[
             "Variable renamed to total",
@@ -519,7 +531,16 @@ TASKS = [
     BenchmarkTask(
         id="N003A",
         name="Refactor: Add Docstring",
-        prompt="Rename variable 'result' to 'total' and add a one-line docstring in the provided Python function. Return only code.",
+        prompt=(
+            "Given this Python function:\n"
+            "```python\n"
+            "def add(a, b):\n"
+            "    result = a + b\n"
+            "    return result\n"
+            "```\n\n"
+            "Rename variable 'result' to 'total' and add a one-line docstring to the function.\n"
+            "Return ONLY a single ```python``` code block and nothing else."
+        ),
         expected_criteria=[
             "Renames result to total",
             "Adds one-line docstring",
@@ -532,7 +553,16 @@ TASKS = [
     BenchmarkTask(
         id="N003B",
         name="Refactor: Add Type Hints",
-        prompt="Add type hints (int) to a+b function, rename temp var to total, add docstring. Return only code block.",
+        prompt=(
+            "Given this Python function:\n"
+            "```python\n"
+            "def add(a, b):\n"
+            "    temp = a + b\n"
+            "    return temp\n"
+            "```\n\n"
+            "Add type hints (int) to the parameters and return type, rename temp var to 'total', and add a one-line docstring.\n"
+            "Return ONLY a single ```python``` code block and nothing else."
+        ),
         expected_criteria=[
             "Type hints added",
             "Variable renamed to total",
@@ -545,7 +575,17 @@ TASKS = [
     BenchmarkTask(
         id="N003C",
         name="Refactor: Guard Clause",
-        prompt="Add a guard clause for None inputs to a+b function, keep behavior, add docstring, return code only.",
+        prompt=(
+            "Given this Python function:\n"
+            "```python\n"
+            "def add(a, b):\n"
+            "    temp = a + b\n"
+            "    return temp\n"
+            "```\n\n"
+            "Add a guard clause for None inputs (if a is None or b is None: return None).\n"
+            "Keep the behavior identical otherwise, rename temp var to 'total', and add a one-line docstring.\n"
+            "Return ONLY a single ```python``` code block and nothing else."
+        ),
         expected_criteria=[
             "Handles None",
             "Behavior otherwise unchanged",
@@ -558,7 +598,16 @@ TASKS = [
     BenchmarkTask(
         id="N003D",
         name="Refactor: Logging",
-        prompt="Insert a simple print/log before returning sum, rename temp to total, add docstring, return code only.",
+        prompt=(
+            "Given this Python function:\n"
+            "```python\n"
+            "def add(a, b):\n"
+            "    temp = a + b\n"
+            "    return temp\n"
+            "```\n\n"
+            "Insert a simple print/log line before returning the sum, rename temp to 'total', and add a one-line docstring.\n"
+            "Return ONLY a single ```python``` code block and nothing else."
+        ),
         expected_criteria=[
             "Includes log/print",
             "temp renamed to total",
@@ -571,7 +620,17 @@ TASKS = [
     BenchmarkTask(
         id="N003E",
         name="Refactor: Const Extract",
-        prompt="Extract the addition into a helper 'add(a,b)', call it, rename temp to total, add docstring, return code only.",
+        prompt=(
+            "Given this Python function:\n"
+            "```python\n"
+            "def calc(a, b):\n"
+            "    temp = a + b\n"
+            "    return temp\n"
+            "```\n\n"
+            "Refactor by extracting the addition into a helper function `add(a, b)` and call it from `calc`.\n"
+            "Rename temp to 'total' and add a one-line docstring to both functions.\n"
+            "Return ONLY a single ```python``` code block and nothing else."
+        ),
         expected_criteria=[
             "Helper function present",
             "temp renamed to total",

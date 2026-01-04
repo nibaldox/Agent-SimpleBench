@@ -3,7 +3,13 @@ import json
 import os
 import sys
 import statistics
-from typing import List, Dict, Any, Tuple
+import tempfile
+import subprocess
+import re
+import socket
+import ipaddress
+from urllib.parse import urlparse
+from typing import List, Dict, Any, Tuple, Optional
 
 # Force UTF-8 output for Windows terminals
 sys.stdout.reconfigure(encoding='utf-8')
@@ -13,6 +19,173 @@ from src.agent import BenchmarkAgent
 from src.config import Config
 
 class BenchmarkRunner:
+    def _extract_first_json_object(self, text: str) -> Optional[str]:
+        if not text:
+            return None
+        text = text.strip()
+        start = text.find("{")
+        if start == -1:
+            return None
+        depth = 0
+        for i in range(start, len(text)):
+            ch = text[i]
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start : i + 1]
+        return None
+
+    def _safe_extract_code(self, text: str) -> Optional[str]:
+        """Extract a python code block if present; otherwise return the raw text."""
+        if not text:
+            return None
+        m = re.search(r"```(?:python)?\s*\n(.*?)\n```", text, re.DOTALL | re.IGNORECASE)
+        if m:
+            return m.group(1).strip()
+        return text.strip()
+
+    def _is_private_or_local_host(self, hostname: str) -> bool:
+        if not hostname:
+            return True
+        h = hostname.strip().lower()
+        if h in {"localhost", "127.0.0.1", "0.0.0.0", "::1"}:
+            return True
+        try:
+            ip = ipaddress.ip_address(h)
+            return (
+                ip.is_private
+                or ip.is_loopback
+                or ip.is_link_local
+                or ip.is_multicast
+                or ip.is_reserved
+            )
+        except ValueError:
+            pass
+
+        try:
+            infos = socket.getaddrinfo(h, None)
+            for info in infos:
+                addr = info[4][0]
+                try:
+                    ip = ipaddress.ip_address(addr)
+                    if ip.is_private or ip.is_loopback or ip.is_link_local:
+                        return True
+                except ValueError:
+                    continue
+        except Exception:
+            return True
+        return False
+
+    def _verify_sources_from_output(self, text: str, max_urls: int = 5, timeout_s: int = 6) -> Dict[str, Any]:
+        """Fetch cited URLs (http/https) with SSRF protections.
+
+        This does NOT do web search; it only verifies the provided citations.
+        """
+        urls = re.findall(r"https?://[^\s\]\)\>\"']+", text or "")
+        seen: List[str] = []
+        for u in urls:
+            if u not in seen:
+                seen.append(u)
+        seen = seen[:max_urls]
+
+        report: Dict[str, Any] = {"urls": seen, "checks": []}
+        if not seen:
+            return report
+
+        import requests
+
+        for u in seen:
+            parsed = urlparse(u)
+            if parsed.scheme not in ("http", "https"):
+                report["checks"].append({"url": u, "ok": False, "error": "unsupported_scheme"})
+                continue
+            if self._is_private_or_local_host(parsed.hostname or ""):
+                report["checks"].append({"url": u, "ok": False, "error": "blocked_host"})
+                continue
+
+            try:
+                r = requests.get(
+                    u,
+                    timeout=timeout_s,
+                    headers={"User-Agent": "Agent-SimpleBench/1.0"},
+                    allow_redirects=True,
+                    stream=True,
+                )
+                content_type = (r.headers.get("content-type") or "").lower()
+                prefix = r.content[:65536] if hasattr(r, "content") else b""
+                title = None
+                if "text/html" in content_type and prefix:
+                    try:
+                        html = prefix.decode("utf-8", errors="ignore")
+                        tm = re.search(r"<title[^>]*>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
+                        if tm:
+                            title = re.sub(r"\s+", " ", tm.group(1)).strip()[:200]
+                    except Exception:
+                        title = None
+
+                report["checks"].append(
+                    {
+                        "url": u,
+                        "final_url": str(r.url),
+                        "status": int(r.status_code),
+                        "ok": bool(r.status_code and r.status_code < 400),
+                        "content_type": content_type,
+                        "title": title,
+                    }
+                )
+            except Exception as e:
+                report["checks"].append({"url": u, "ok": False, "error": str(e)})
+
+        return report
+
+    def _prepare_coding_sandbox(self, task_obj: BenchmarkTask, sandbox_dir: str) -> None:
+        prompt_lower = (task_obj.prompt or "").lower()
+        if "largest" in prompt_lower and "file" in prompt_lower:
+            sizes = [128, 2048, 4096, 8192, 16384, 512, 1024]
+            for i, sz in enumerate(sizes, start=1):
+                p = os.path.join(sandbox_dir, f"file_{i}.bin")
+                with open(p, "wb") as f:
+                    f.write(b"0" * sz)
+
+    def _run_code_in_sandbox(self, task_obj: BenchmarkTask, output_text: str, timeout_s: int = 8) -> Dict[str, Any]:
+        """Execute generated Python in a temp directory with timeout.
+
+        This is isolation by CWD + temp dir + timeout. It is not a perfect sandbox.
+        """
+        code = self._safe_extract_code(output_text)
+        if not code:
+            return {"ran": False, "error": "no_code"}
+
+        with tempfile.TemporaryDirectory(prefix="agentbench_sandbox_") as tmp:
+            self._prepare_coding_sandbox(task_obj, tmp)
+            script_path = os.path.join(tmp, "main.py")
+            with open(script_path, "w", encoding="utf-8") as f:
+                f.write(code)
+
+            cmd = [sys.executable, "-I", script_path]
+            try:
+                proc = subprocess.run(
+                    cmd,
+                    cwd=tmp,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout_s,
+                )
+                stdout = (proc.stdout or "")[:4000]
+                stderr = (proc.stderr or "")[:4000]
+                return {
+                    "ran": True,
+                    "exit_code": int(proc.returncode),
+                    "stdout": stdout,
+                    "stderr": stderr,
+                }
+            except subprocess.TimeoutExpired:
+                return {"ran": True, "timeout": True, "exit_code": None, "stdout": "", "stderr": "timeout"}
+            except Exception as e:
+                return {"ran": True, "error": str(e), "exit_code": None, "stdout": "", "stderr": ""}
+
     def __init__(self, output_dir="benchmarks/results", log_callback=None, model_id=None, difficulty=None, enable_tools=True, stop_event=None, task_id=None, language="english"):
         self.output_dir = output_dir
         self.log_callback = log_callback
@@ -162,28 +335,13 @@ class BenchmarkRunner:
         - Return strict JSON only (no markdown)
         """
 
-        def extract_first_json_object(text: str) -> Optional[str]:
-            if not text:
-                return None
-            # Strip common fenced blocks but keep content.
-            text = text.strip()
-            # Find first '{' and then balance braces.
-            start = text.find("{")
-            if start == -1:
-                return None
-            depth = 0
-            for i in range(start, len(text)):
-                ch = text[i]
-                if ch == "{":
-                    depth += 1
-                elif ch == "}":
-                    depth -= 1
-                    if depth == 0:
-                        return text[start : i + 1]
-            return None
 
         criteria_lines = [f"[{i}] {c}" for i, c in enumerate(task.expected_criteria, start=1)]
         criteria_text = "\n".join(criteria_lines) if criteria_lines else "(none)"
+
+        # Optional evidence blocks for better judge reliability
+        exec_report = getattr(task, "_exec_report", None)
+        source_report = getattr(task, "_source_report", None)
 
         judge_prompt = (
             "You are an impartial evaluator.\n"
@@ -205,10 +363,16 @@ class BenchmarkRunner:
             "</CRITERIA>\n"
         )
 
+        if exec_report is not None:
+            judge_prompt += "\n<EXECUTION_REPORT>\n" + json.dumps(exec_report, ensure_ascii=False) + "\n</EXECUTION_REPORT>\n"
+
+        if source_report is not None:
+            judge_prompt += "\n<SOURCE_VERIFICATION>\n" + json.dumps(source_report, ensure_ascii=False) + "\n</SOURCE_VERIFICATION>\n"
+
         try:
             response_obj = self.judge_agent.get_response(judge_prompt)
             response_text = response_obj.content if hasattr(response_obj, "content") else str(response_obj)
-            raw_json = extract_first_json_object(response_text)
+            raw_json = self._extract_first_json_object(response_text)
             if not raw_json:
                 self.log(f"JUDGE PARSE ERROR. Raw output: {response_text}", level="ERROR")
                 return {"score": 0, "reason": "Failed to parse judge output", "pass": False, "criteria_results": []}
@@ -282,6 +446,30 @@ class BenchmarkRunner:
                 content = response.content if hasattr(response, 'content') else str(response)
                 token_metrics = self.extract_token_metrics(response)
                 duration = time.time() - start_time
+
+                # Optional: execute code and/or verify sources to provide judge evidence
+                judge_run_code = os.getenv("JUDGE_RUN_CODE", "true").lower() == "true"
+                judge_verify_sources = os.getenv("JUDGE_VERIFY_SOURCES", "true").lower() == "true"
+
+                exec_report = None
+                source_report = None
+
+                if judge_run_code and task.category == "coding":
+                    try:
+                        # Stash report on task for evaluate_result to include as evidence
+                        exec_report = self._run_code_in_sandbox(task, content)
+                    except Exception as e:
+                        exec_report = {"ran": False, "error": f"exec_error: {e}"}
+
+                if judge_verify_sources and task.category == "research":
+                    try:
+                        source_report = self._verify_sources_from_output(content)
+                    except Exception as e:
+                        source_report = {"urls": [], "checks": [], "error": f"verify_error: {e}"}
+
+                # Attach evidence to task (evaluate_result reads these)
+                setattr(task, "_exec_report", exec_report)
+                setattr(task, "_source_report", source_report)
                 
                 eval_result = self.evaluate_result(task, content)
 
@@ -305,6 +493,8 @@ class BenchmarkRunner:
                     "prompt": task.prompt, # Add prompt for UI visibility
                     "task_name": task.name, # Add task name for UI visibility
                     "token_metrics": token_metrics,
+                    "execution_report": exec_report,
+                    "source_verification": source_report,
                 }
                 task_runs.append(run_data)
                 self.emit_result(run_data)
