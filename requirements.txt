@@ -1,4 +1,7 @@
 agno
+fastapi
+uvicorn[standard]
+ollama
 openai
 duckduckgo-search
 python-dotenv
