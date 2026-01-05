@@ -8,13 +8,14 @@ from agno.tools.file import FileTools
 from agno.tools.shell import ShellTools
 from src.config import Config
 from src.roles import get_role_profile
+from typing import Any
 
 class BenchmarkAgent:
     def __init__(
         self,
-        model_id: str = None,
+        model_id: str | None = None,
         enable_tools: bool = True,
-        tools_config: dict = None,
+        tools_config: dict[str, Any] | None = None,
         role_id: str | None = None,
         strict_mode: bool | None = None,
     ):
