@@ -25,7 +25,7 @@ class BenchmarkAgent:
         self.strict_mode = strict_mode
         # Default config if not provided but tools are enabled
         if enable_tools and not tools_config:
-            self.tools_config = {
+            self.tools_config: dict[str, Any] = {
                 "web_search": True,
                 "file_system": True,
                 "shell": True # Legacy default, but maybe we should default to False? keeping True for consistency
@@ -33,7 +33,7 @@ class BenchmarkAgent:
         elif not enable_tools:
             self.tools_config = {}
         else:
-            self.tools_config = tools_config
+            self.tools_config = tools_config or {}
 
         self.agent = self._create_agent()
     
