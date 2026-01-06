@@ -146,7 +146,7 @@ function handleChatWebSocket(ws: WebSocket): void {
           completion_tokens: completionTokensEst,
           total_tokens: totalTokensEst,
           duration_seconds: duration,
-          tokens_per_second: totalTokensEst / duration
+          tokens_per_second: duration > 0 ? totalTokensEst / duration : 0
         }
       }));
 
