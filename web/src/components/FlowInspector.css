@@ -1,0 +1,590 @@
+/* Flow Inspector - Clean Step-by-Step Design with Animations */
+
+.flow-inspector-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.flow-inspector-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 1rem;
+    background: var(--bg-tertiary);
+}
+
+.flow-inspector-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.flow-inspector-badge {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.5rem;
+    background: var(--glass-bg);
+    border-radius: 999px;
+    color: var(--text-secondary);
+}
+
+.flow-inspector-body {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 1rem 1.5rem;
+    scrollbar-width: thin;
+}
+
+.flow-inspector-body::-webkit-scrollbar {
+    height: 4px;
+}
+
+.flow-inspector-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.flow-inspector-body::-webkit-scrollbar-thumb {
+    background: var(--glass-border);
+    border-radius: 2px;
+}
+
+/* Empty State */
+.flow-empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    width: 100%;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
+.flow-empty-state .empty-icon {
+    opacity: 0.4;
+}
+
+/* Pulse animation for empty state */
+.pulse-animation {
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 0.4;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.7;
+        transform: scale(1.1);
+    }
+}
+
+/* Flow Steps Row */
+.flow-steps-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 0.25rem 2rem 0.25rem 0;
+}
+
+/* Individual Step Box */
+.flow-step-box {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1.25rem;
+    background: var(--bg-tertiary);
+    border: 2px solid var(--glass-border);
+    border-radius: 12px;
+    min-width: 140px;
+    max-width: 180px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+    cursor: pointer;
+    position: relative;
+    animation: slideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.flow-step-box:hover {
+    transform: translateY(-4px) scale(1.02);
+    box-shadow: 0 8px 24px var(--glow-color, rgba(0, 0, 0, 0.3));
+}
+
+.flow-step-box:active {
+    transform: translateY(-2px) scale(0.98);
+}
+
+.flow-step-box.complete {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+    animation: slideIn 0.4s ease-out, completePulse 2s ease-in-out infinite;
+}
+
+.flow-step-box.error {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+    animation: slideIn 0.4s ease-out, errorShake 0.5s ease-in-out;
+}
+
+.flow-step-box.latest {
+    animation: slideIn 0.4s ease-out, latestGlow 1.5s ease-in-out infinite;
+}
+
+/* Step Animations */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-30px) scale(0.8);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+@keyframes completePulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+    }
+
+    50% {
+        box-shadow: 0 0 30px rgba(16, 185, 129, 0.5);
+    }
+}
+
+@keyframes errorShake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    20% {
+        transform: translateX(-5px);
+    }
+
+    40% {
+        transform: translateX(5px);
+    }
+
+    60% {
+        transform: translateX(-3px);
+    }
+
+    80% {
+        transform: translateX(3px);
+    }
+}
+
+@keyframes latestGlow {
+
+    0%,
+    100% {
+        box-shadow: 0 0 15px var(--glow-color, rgba(59, 130, 246, 0.3));
+    }
+
+    50% {
+        box-shadow: 0 0 25px var(--glow-color, rgba(59, 130, 246, 0.5));
+    }
+}
+
+/* Step Number/Icon */
+.step-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 0.8rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    transition: transform 0.3s ease;
+}
+
+.flow-step-box:hover .step-number {
+    transform: scale(1.1);
+}
+
+/* Step Info */
+.step-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.step-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.step-desc {
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+    opacity: 0.8;
+}
+
+/* Arrow Connector with Animation */
+.step-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 1.25rem;
+    color: var(--glass-border);
+    flex-shrink: 0;
+}
+
+.step-arrow.animated-arrow {
+    animation: arrowPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes arrowPulse {
+
+    0%,
+    100% {
+        opacity: 0.5;
+        transform: translateX(0);
+    }
+
+    50% {
+        opacity: 1;
+        transform: translateX(3px);
+    }
+}
+
+/* Spinning animation for loader */
+.spinning {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ==========================================
+   POPUP STYLES
+   ========================================== */
+
+.step-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.step-popup {
+    background: var(--bg-secondary);
+    border: 2px solid var(--accent-primary);
+    border-radius: 16px;
+    min-width: 320px;
+    max-width: 400px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    animation: popupSlide 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    overflow: hidden;
+}
+
+@keyframes popupSlide {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.popup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.popup-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.popup-close {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.popup-close:hover {
+    background: var(--glass-bg);
+    color: var(--text-primary);
+}
+
+.popup-body {
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.popup-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.popup-section-footer {
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--glass-border);
+}
+
+.popup-label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.popup-value {
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+.popup-value-large {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.popup-value-small {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+/* Metrics Grid - 2x2 */
+.popup-metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin: 0.5rem 0;
+    padding: 0.75rem;
+    background: var(--bg-tertiary);
+    border-radius: 10px;
+}
+
+.popup-metric {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+}
+
+.popup-metric-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    flex-shrink: 0;
+}
+
+.popup-metric-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.popup-metric-value {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.popup-metric-label {
+    font-size: 0.6rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+/* ==========================================
+   RESPONSIVE DESIGN - Flow Inspector
+   ========================================== */
+
+@media (max-width: 900px) {
+    .flow-inspector-body {
+        padding: 0.75rem 1rem;
+    }
+
+    .flow-step-box {
+        min-width: 120px;
+        max-width: 150px;
+        padding: 0.5rem 0.75rem;
+    }
+
+    .step-number {
+        width: 24px;
+        height: 24px;
+        font-size: 0.7rem;
+    }
+
+    .step-title {
+        font-size: 0.7rem;
+    }
+
+    .step-desc {
+        font-size: 0.6rem;
+    }
+
+    .step-arrow {
+        padding: 0 0.75rem;
+    }
+
+    .step-popup {
+        min-width: 280px;
+        max-width: 90vw;
+    }
+}
+
+@media (max-width: 600px) {
+    .flow-inspector-header {
+        padding: 0.4rem 0.75rem;
+    }
+
+    .flow-inspector-title {
+        font-size: 0.75rem;
+    }
+
+    .flow-inspector-badge {
+        font-size: 0.6rem;
+        padding: 0.1rem 0.4rem;
+    }
+
+    .flow-inspector-body {
+        padding: 0.5rem 0.75rem;
+    }
+
+    .flow-step-box {
+        min-width: 100px;
+        max-width: 130px;
+        padding: 0.4rem 0.6rem;
+        gap: 0.5rem;
+        border-radius: 8px;
+    }
+
+    .step-number {
+        width: 20px;
+        height: 20px;
+        font-size: 0.6rem;
+    }
+
+    .step-number svg {
+        width: 12px;
+        height: 12px;
+    }
+
+    .step-title {
+        font-size: 0.65rem;
+    }
+
+    .step-desc {
+        font-size: 0.55rem;
+    }
+
+    .step-arrow {
+        padding: 0 0.5rem;
+    }
+
+    .step-arrow svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    .flow-empty-state {
+        font-size: 0.7rem;
+    }
+
+    .flow-empty-state .empty-icon {
+        width: 20px;
+        height: 20px;
+    }
+
+    .step-popup {
+        min-width: 260px;
+        max-width: 95vw;
+        margin: 1rem;
+    }
+
+    .popup-header {
+        padding: 0.75rem 1rem;
+    }
+
+    .popup-title {
+        font-size: 0.9rem;
+    }
+
+    .popup-body {
+        padding: 1rem;
+    }
+}

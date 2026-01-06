@@ -42,3 +42,7 @@ web/node_modules/
 web/dist/
 web/dist-ssr/
 web/*.local
+
+# Root Node
+node_modules/
+package-lock.json

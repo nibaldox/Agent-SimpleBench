@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Activity, CheckCircle, XCircle, Clock, History, Zap, TrendingUp, Timer, BarChart3, Trash2, Eye } from 'lucide-react';
+import { Play, Activity, CheckCircle, XCircle, Clock, History, Zap, TrendingUp, Timer, BarChart3, Trash2, Eye, Menu, ChevronDown, ChevronUp, X, Trophy, AlertTriangle, Target } from 'lucide-react';
 import { TraceInspector } from './TraceInspector';
+import { FlowInspector } from './FlowInspector';
+import { InteractiveTokenChart } from './InteractiveTokenChart';
 import { ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, Legend, BarChart, LineChart } from 'recharts';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -31,6 +33,33 @@ export const BenchmarkDashboard = ({ initialTab = 'dashboard', language = 'engli
     const [selectedTaskDetailsStatus, setSelectedTaskDetailsStatus] = useState('idle');
     const [showTaskPreview, setShowTaskPreview] = useState(false);
     const [traceEvents, setTraceEvents] = useState([]);
+    const [controlsCollapsed, setControlsCollapsed] = useState(false);
+    const [controlsDrawerOpen, setControlsDrawerOpen] = useState(false);
+
+    const selectedModelLabel = (() => {
+        const entry = Object.entries(config.models || {}).find(([, id]) => id === selectedModel);
+        return entry ? entry[0] : (selectedModel || '—');
+    })();
+
+    const isSpanish = language === 'spanish';
+    const ui = {
+        controls: isSpanish ? 'Controles' : 'Controls',
+        close: isSpanish ? 'Cerrar' : 'Close',
+        showControls: isSpanish ? 'Mostrar controles' : 'Show controls',
+        hideControls: isSpanish ? 'Ocultar controles' : 'Hide controls',
+        tools: isSpanish ? 'Herramientas' : 'Tools',
+        allShort: isSpanish ? 'Todas' : 'All',
+    };
+
+    const allLabel = ui.allShort;
+    const selectedTaskLabel = (() => {
+        if (!selectedTask) return allLabel;
+        const found = (config.tasks || []).find(t => t.id === selectedTask);
+        return found?.name || selectedTask;
+    })();
+
+    const toolsLabel = enableTools ? 'ON' : 'OFF';
+    const controlsSummary = `${selectedModelLabel} • ${selectedDifficulty} • ${selectedCategory} • ${selectedTaskLabel} • ${ui.tools}: ${toolsLabel}`;
 
     // Sync with parent's initialTab prop
     useEffect(() => {
@@ -297,6 +326,7 @@ export const BenchmarkDashboard = ({ initialTab = 'dashboard', language = 'engli
         console.log("🖱️ Run button clicked!");
         setStatus('running');
         setLogs(prev => [...prev, { type: 'log', message: '🚀 Starting Benchmark Request...', level: 'INFO', timestamp: Date.now() / 1000 }]);
+        setTraceEvents([]); // Clear Flow Inspector for new run
         setResults([]);
         try {
             console.log("📡 Sending start request to backend...");
@@ -325,6 +355,124 @@ export const BenchmarkDashboard = ({ initialTab = 'dashboard', language = 'engli
             setLogs(prev => [...prev, { type: 'log', message: `❌ Connection Failed: ${e.message}. Check if Backend is running.`, level: 'ERROR', timestamp: Date.now() / 1000 }]);
         }
     };
+
+    // When Compare is selected externally, load data automatically
+    useEffect(() => {
+        if (activeTab === 'compare') {
+            loadAllBenchmarks();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab]);
+
+    // Lock body scroll while drawer is open
+    useEffect(() => {
+        if (!controlsDrawerOpen) return;
+        const prevOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+
+        const onKeyDown = (e) => {
+            if (e.key === 'Escape') setControlsDrawerOpen(false);
+        };
+        window.addEventListener('keydown', onKeyDown);
+
+        return () => {
+            document.body.style.overflow = prevOverflow;
+            window.removeEventListener('keydown', onKeyDown);
+        };
+    }, [controlsDrawerOpen]);
+
+    const renderToolsToggle = (idSuffix) => (
+        <div className="tools-checkbox-container">
+            <input
+                type="checkbox"
+                checked={enableTools}
+                onChange={(e) => setEnableTools(e.target.checked)}
+                id={`enableTools-${idSuffix}`}
+                className="tools-checkbox"
+                disabled={status === 'running'}
+            />
+            <label htmlFor={`enableTools-${idSuffix}`} className="tools-label">{ui.tools}</label>
+        </div>
+    );
+
+    const renderControlGroup = () => (
+        <div className="control-group">
+            <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                className="control-select"
+                disabled={status === 'running'}
+            >
+                {Object.entries(config.models).map(([name, id]) => (
+                    <option key={id} value={id} className="select-option">{name}</option>
+                ))}
+            </select>
+            <div className="control-divider" />
+            <select
+                value={selectedDifficulty}
+                onChange={(e) => { setSelectedDifficulty(e.target.value); setSelectedTask(''); setShowTaskPreview(false); }}
+                className="control-select"
+                disabled={status === 'running'}
+            >
+                {config.difficulties.map(diff => (
+                    <option key={diff} value={diff} className="select-option">{diff}</option>
+                ))}
+            </select>
+            <div className="control-divider" />
+            <select
+                value={selectedCategory}
+                onChange={(e) => { setSelectedCategory(e.target.value); setSelectedTask(''); setShowTaskPreview(false); }}
+                className="control-select"
+                disabled={status === 'running'}
+            >
+                {(config.categories && config.categories.length ? config.categories : ['All']).map(cat => (
+                    <option key={cat} value={cat} className="select-option">{cat}</option>
+                ))}
+            </select>
+            <div className="control-divider" />
+            <select
+                value={selectedTask}
+                onChange={(e) => { setSelectedTask(e.target.value); setShowTaskPreview(false); }}
+                className="control-select control-select-wide"
+                disabled={status === 'running'}
+            >
+                <option value="" className="select-option-muted">
+                    {`All in ${selectedDifficulty}${selectedCategory !== 'All' ? ` / ${selectedCategory}` : ''}`}
+                </option>
+
+                {/* If Category is All, group by category for better navigation */}
+                {selectedCategory === 'All'
+                    ? groupedCategoryKeys.map(cat => (
+                        <optgroup key={cat} label={`${cat} (${groupedTasks[cat].length})`}>
+                            {groupedTasks[cat]
+                                .slice()
+                                .sort((a, b) => a.name.localeCompare(b.name))
+                                .map(t => (
+                                    <option key={t.id} value={t.id} className="select-option">{t.id ? `${t.id} — ${t.name}` : t.name}</option>
+                                ))}
+                        </optgroup>
+                    ))
+                    : filteredTasks
+                        .slice()
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                        .map(t => (
+                            <option key={t.id} value={t.id} className="select-option">{t.id ? `${t.id} — ${t.name}` : t.name}</option>
+                        ))
+                }
+            </select>
+
+            {selectedTask && (
+                <button
+                    onClick={() => setShowTaskPreview(true)}
+                    title="Preview selected task"
+                    className="btn-preview"
+                    disabled={status === 'running'}
+                >
+                    <Eye size={14} /> Preview
+                </button>
+            )}
+        </div>
+    );
 
     const stopBenchmark = async () => {
         try {
@@ -413,16 +561,18 @@ export const BenchmarkDashboard = ({ initialTab = 'dashboard', language = 'engli
     const avgScore = results.length ? (results.reduce((acc, r) => acc + (r.score || 0), 0) / results.length).toFixed(1) : 0;
     const avgDuration = results.length ? (results.reduce((acc, r) => acc + (r.duration || 0), 0) / results.length).toFixed(2) : 0;
 
+    // New statistics
+    const successCount = results.filter(r => r.success === true || r.score >= 8).length;
+    const successRate = totalRuns > 0 ? ((successCount / totalRuns) * 100).toFixed(0) : 0;
+    const bestScore = results.length ? Math.max(...results.map(r => r.score || 0)).toFixed(1) : 0;
+    const errorCount = results.filter(r => r.error || r.success === false || r.score < 5).length;
+
     return (
         <div className="dashboard-container">
 
-            {/* Header - Bold Industrial Design */}
+            {/* Controls toolbar (App renders the main header/nav) */}
             <header className="dashboard-header">
-                {/* Subtle top accent line */}
-                <div className="header-accent-line" />
-
-                <div className="flex items-center gap-lg">
-                    {/* History Toggle - Enhanced */}
+                <div className="dashboard-header-left">
                     <button
                         onClick={() => { setShowHistory(!showHistory); fetchHistory(); }}
                         className={`btn-icon ${showHistory ? 'btn-icon-active' : ''}`}
@@ -431,128 +581,31 @@ export const BenchmarkDashboard = ({ initialTab = 'dashboard', language = 'engli
                         <History size={18} strokeWidth={2.5} />
                     </button>
 
-                    {/* Logo/Brand */}
-                    <div className="flex items-baseline gap-xs">
-                        <h1 className="dashboard-logo">
-                            Agent<span className="logo-accent">Bench</span>
-                        </h1>
-                        <span className="version-badge">v2</span>
-                    </div>
-
-                    {/* Navigation Tabs - Pill Style */}
-                    <div className="nav-tabs">
-                        <button
-                            onClick={() => setActiveTab('dashboard')}
-                            className={`nav-tab ${activeTab === 'dashboard' ? 'nav-tab-active' : ''}`}
-                        >
-                            Dashboard
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('creator')}
-                            className={`nav-tab ${activeTab === 'creator' ? 'nav-tab-active' : ''}`}
-                        >
-                            Test Creator
-                        </button>
-                        <button
-                            onClick={() => { setActiveTab('compare'); loadAllBenchmarks(); }}
-                            className={`nav-tab ${activeTab === 'compare' ? 'nav-tab-active' : ''}`}
-                        >
-                            <BarChart3 size={14} />
-                            Compare
-                        </button>
-                    </div>
+                    {/* Mobile: open controls drawer */}
+                    <button
+                        onClick={() => setControlsDrawerOpen(true)}
+                        className="btn-icon btn-controls-drawer"
+                        title={ui.controls}
+                    >
+                        <Menu size={18} strokeWidth={2.5} />
+                    </button>
                 </div>
+
+                {controlsCollapsed && (
+                    <div className="controls-summary" title={controlsSummary} aria-label={controlsSummary}>
+                        {controlsSummary}
+                    </div>
+                )}
 
                 <div className="flex flex-nowrap gap-md items-center header-controls">
 
-                    {/* Controls Group - Enhanced */}
-                    <div className="control-group">
-                        <select
-                            value={selectedModel}
-                            onChange={(e) => setSelectedModel(e.target.value)}
-                            className="control-select"
-                            disabled={status === 'running'}
-                        >
-                            {Object.entries(config.models).map(([name, id]) => (
-                                <option key={id} value={id} className="select-option">{name}</option>
-                            ))}
-                        </select>
-                        <div className="control-divider" />
-                        <select
-                            value={selectedDifficulty}
-                            onChange={(e) => { setSelectedDifficulty(e.target.value); setSelectedTask(''); setShowTaskPreview(false); }}
-                            className="control-select"
-                            disabled={status === 'running'}
-                        >
-                            {config.difficulties.map(diff => (
-                                <option key={diff} value={diff} className="select-option">{diff}</option>
-                            ))}
-                        </select>
-                        <div className="control-divider" />
-                        <select
-                            value={selectedCategory}
-                            onChange={(e) => { setSelectedCategory(e.target.value); setSelectedTask(''); setShowTaskPreview(false); }}
-                            className="control-select"
-                            disabled={status === 'running'}
-                        >
-                            {(config.categories && config.categories.length ? config.categories : ['All']).map(cat => (
-                                <option key={cat} value={cat} className="select-option">{cat}</option>
-                            ))}
-                        </select>
-                        <div className="control-divider" />
-                        <select
-                            value={selectedTask}
-                            onChange={(e) => { setSelectedTask(e.target.value); setShowTaskPreview(false); }}
-                            className="control-select control-select-wide"
-                            disabled={status === 'running'}
-                        >
-                            <option value="" className="select-option-muted">
-                                {`All in ${selectedDifficulty}${selectedCategory !== 'All' ? ` / ${selectedCategory}` : ''}`}
-                            </option>
-
-                            {/* If Category is All, group by category for better navigation */}
-                            {selectedCategory === 'All'
-                                ? groupedCategoryKeys.map(cat => (
-                                    <optgroup key={cat} label={cat}>
-                                        {groupedTasks[cat]
-                                            .slice()
-                                            .sort((a, b) => a.name.localeCompare(b.name))
-                                            .map(t => (
-                                                <option key={t.id} value={t.id} className="select-option">{t.name}</option>
-                                            ))}
-                                    </optgroup>
-                                ))
-                                : filteredTasks
-                                    .slice()
-                                    .sort((a, b) => a.name.localeCompare(b.name))
-                                    .map(t => (
-                                        <option key={t.id} value={t.id} className="select-option">{t.name}</option>
-                                    ))
-                            }
-                        </select>
-
-                        {selectedTask && (
-                            <button
-                                onClick={() => setShowTaskPreview(true)}
-                                title="Preview selected task"
-                                className="btn-preview"
-                                disabled={status === 'running'}
-                            >
-                                <Eye size={14} /> Preview
-                            </button>
-                        )}
+                    {/* Desktop: collapsible controls */}
+                    <div className={`controls-collapsible ${controlsCollapsed ? 'closed' : 'open'}`}>
+                        {renderControlGroup()}
                     </div>
 
-                    <div className="tools-checkbox-container">
-                        <input
-                            type="checkbox"
-                            checked={enableTools}
-                            onChange={(e) => setEnableTools(e.target.checked)}
-                            id="enableTools"
-                            className="tools-checkbox"
-                            disabled={status === 'running'}
-                        />
-                        <label htmlFor="enableTools" className="tools-label">Tools</label>
+                    <div className="tools-checkbox-container tools-checkbox-container--header">
+                        {renderToolsToggle('header')}
                     </div>
 
                     <button
@@ -573,9 +626,51 @@ export const BenchmarkDashboard = ({ initialTab = 'dashboard', language = 'engli
                     >
                         <XCircle size={18} strokeWidth={2.5} />
                     </button>
+
+                    {/* Desktop: collapse/expand controls */}
+                    <button
+                        onClick={() => setControlsCollapsed(prev => !prev)}
+                        className="btn-icon btn-controls-collapse"
+                        title={controlsCollapsed ? ui.showControls : ui.hideControls}
+                    >
+                        {controlsCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                    </button>
                 </div>
 
             </header>
+
+            {/* Mobile controls drawer */}
+            {controlsDrawerOpen && (
+                <div
+                    className="controls-drawer-overlay"
+                    role="presentation"
+                    onClick={() => setControlsDrawerOpen(false)}
+                >
+                    <div
+                        className="controls-drawer"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Controles"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="controls-drawer-header">
+                            <div className="controls-drawer-title">{ui.controls}</div>
+                            <button
+                                onClick={() => setControlsDrawerOpen(false)}
+                                className="btn-icon"
+                                title={ui.close}
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div className="controls-drawer-body">
+                            {renderControlGroup()}
+                            {renderToolsToggle('drawer')}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* MAIN CONTENT AREA */}
             <div className="main-content">
@@ -598,10 +693,8 @@ export const BenchmarkDashboard = ({ initialTab = 'dashboard', language = 'engli
                     /* --- DASHBOARD VIEW --- */
                     <div className="dashboard-view">
 
-                        {/* SCROLLABLE STATS & CHARTS */}
+                        {/* TOP STATS ROW */}
                         <div className="stats-container">
-
-                            {/* Top Stats Row */}
                             <div className="stats-grid">
                                 <StatCard
                                     icon={<Zap />}
@@ -609,6 +702,14 @@ export const BenchmarkDashboard = ({ initialTab = 'dashboard', language = 'engli
                                     value={totalRuns}
                                     color="var(--accent-primary)"
                                     subtitle={status === 'running' ? 'In progress...' : 'Completed'}
+                                />
+                                <StatCard
+                                    icon={<Target />}
+                                    label="Success Rate"
+                                    value={successRate}
+                                    unit="%"
+                                    color={successRate >= 80 ? '#10B981' : successRate >= 50 ? '#F59E0B' : '#EF4444'}
+                                    subtitle={successRate >= 80 ? 'Excellent' : successRate >= 50 ? 'Good' : 'Needs work'}
                                 />
                                 <StatCard
                                     icon={<TrendingUp />}
@@ -619,6 +720,14 @@ export const BenchmarkDashboard = ({ initialTab = 'dashboard', language = 'engli
                                     subtitle={avgScore >= 8 ? 'Excellent' : avgScore >= 5 ? 'Good' : 'Needs work'}
                                 />
                                 <StatCard
+                                    icon={<Trophy />}
+                                    label="Best Score"
+                                    value={bestScore}
+                                    unit="/ 10"
+                                    color="#F59E0B"
+                                    subtitle="Top performance"
+                                />
+                                <StatCard
                                     icon={<Timer />}
                                     label="Avg Duration"
                                     value={avgDuration}
@@ -626,116 +735,59 @@ export const BenchmarkDashboard = ({ initialTab = 'dashboard', language = 'engli
                                     color="var(--accent-primary)"
                                     subtitle={avgDuration > 60 ? 'Slow' : 'Fast'}
                                 />
-                            </div>
-
-                            {/* Middle Section: Chart & List */}
-                            <div className="charts-grid">
-                                <div className="card chart-card">
-                                    <div className="chart-header">
-                                        <h3 className="chart-title">Performance Metrics</h3>
-                                        <div className="chart-legend">
-                                            <span className="legend-item">
-                                                <span className="legend-box legend-duration"></span>
-                                                Duration
-                                            </span>
-                                            <span className="legend-item">
-                                                <span className="legend-line legend-score"></span>
-                                                Score
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="chart-content">
-                                        {results.length > 0 ? (
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <ComposedChart data={results}>
-                                                    <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" />
-                                                    <XAxis dataKey="iteration" stroke="var(--text-secondary)" tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} />
-                                                    <YAxis
-                                                        yAxisId="left"
-                                                        stroke="var(--text-secondary)"
-                                                        tick={{ fill: 'var(--text-secondary)', fontSize: 12 }}
-                                                        label={{ value: 'Seconds', angle: -90, position: 'insideLeft', fill: 'var(--text-secondary)', fontSize: 12 }}
-                                                    />
-                                                    <YAxis
-                                                        yAxisId="right"
-                                                        orientation="right"
-                                                        domain={[0, 10]}
-                                                        stroke="var(--text-secondary)"
-                                                        tick={{ fill: 'var(--text-secondary)', fontSize: 12 }}
-                                                        label={{ value: 'Score', angle: 90, position: 'insideRight', fill: 'var(--text-secondary)', fontSize: 12 }}
-                                                    />
-                                                    <Tooltip
-                                                        formatter={(value, name, props) => {
-                                                            const taskLabel = props?.payload?.taskName || props?.payload?.task_name || '';
-                                                            const label = name === 'Duration (s)' ? 'Duration (s)' : 'Score';
-                                                            return [value, taskLabel ? `${label} • ${taskLabel}` : label];
-                                                        }}
-                                                        contentStyle={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)', borderRadius: 8 }}
-                                                        itemStyle={{ color: 'var(--text-primary)', fontSize: 12 }}
-                                                    />
-                                                    <Bar
-                                                        yAxisId="left"
-                                                        dataKey="duration"
-                                                        fill="var(--accent-secondary)"
-                                                        name="Duration (s)"
-                                                        radius={[4, 4, 0, 0]}
-                                                        maxBarSize={32}
-                                                        opacity={0.9}
-                                                    />
-                                                    <Line
-                                                        yAxisId="right"
-                                                        type="monotone"
-                                                        dataKey="score"
-                                                        name="Score"
-                                                        stroke="var(--accent-primary)"
-                                                        strokeWidth={2.4}
-                                                        dot={{ r: 4, fill: 'var(--bg-secondary)', stroke: 'var(--accent-primary)', strokeWidth: 2 }}
-                                                        activeDot={{ r: 5, strokeWidth: 2, stroke: 'var(--accent-primary)' }}
-                                                    />
-                                                    <ReferenceLine yAxisId="right" y={8} stroke="var(--glass-border)" strokeDasharray="4 4" />
-                                                </ComposedChart>
-                                            </ResponsiveContainer>
-                                        ) : (
-                                            <div className="chart-empty">
-                                                <Activity size={48} className="chart-empty-icon" />
-                                                <div>No performance data available</div>
-                                                <div className="chart-empty-subtitle">Run a benchmark to see metrics</div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="card results-card">
-                                    <div className="results-header">
-                                        <h3 className="results-title">Recent Results</h3>
-                                        {results.length > 0 && (
-                                            <span className="results-badge">{results.length} runs</span>
-                                        )}
-                                    </div>
-                                    <div className="results-list">
-                                        {results.slice().reverse().map((r, i) => (
-                                            <div key={i} onClick={() => setSelectedResult(r)} className={`result-item result-score-${r.score >= 8 ? 'high' : r.score >= 5 ? 'medium' : 'low'}`}>
-                                                <div className="result-header-row">
-                                                    <span className="result-task-name">{r.taskName || `Task ${r.iteration}`}</span>
-                                                    <span className="result-score">
-                                                        {r.score}<span className="result-score-max">/10</span>
-                                                    </span>
-                                                </div>
-                                                <div className="result-meta">
-                                                    <span className="result-duration">{r.duration}s</span>
-                                                    <span className="result-difficulty">{r.difficulty || 'Medium'}</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                        {results.length === 0 && <div className="results-empty">No runs yet</div>}
-                                    </div>
-                                </div>
-
-                                <TraceInspector events={traceEvents} />
+                                <StatCard
+                                    icon={<AlertTriangle />}
+                                    label="Errors"
+                                    value={errorCount}
+                                    color={errorCount > 0 ? '#EF4444' : '#10B981'}
+                                    subtitle={errorCount === 0 ? 'No issues' : 'Review needed'}
+                                />
                             </div>
                         </div>
 
+                        {/* MAIN 2-COLUMN SECTION: Chart and Results */}
+                        <div className="charts-grid">
+                            {/* Column 1: Performance Chart */}
+                            {/* Column 1: Performance Chart Replaced by InteractiveTokenChart */}
+                            <div className="card chart-card" style={{ padding: 0, overflow: 'hidden', background: 'transparent', border: 'none', boxShadow: 'none' }}>
+                                <InteractiveTokenChart results={results} />
+                            </div>
+
+                            {/* Column 2: Recent Results */}
+                            <div className="card results-card">
+                                <div className="results-header">
+                                    <h3 className="results-title">Recent Results</h3>
+                                    {results.length > 0 && (
+                                        <span className="results-badge">{results.length} runs</span>
+                                    )}
+                                </div>
+                                <div className="results-list">
+                                    {results.slice().reverse().map((r, i) => (
+                                        <div key={i} onClick={() => setSelectedResult(r)} className={`result-item result-score-${r.score >= 8 ? 'high' : r.score >= 5 ? 'medium' : 'low'}`}>
+                                            <div className="result-header-row">
+                                                <span className="result-task-name">{r.taskName || `Task ${r.iteration}`}</span>
+                                                <span className="result-score">
+                                                    {r.score}<span className="result-score-max">/10</span>
+                                                </span>
+                                            </div>
+                                            <div className="result-meta">
+                                                <span className="result-duration">{r.duration}s</span>
+                                                <span className="result-difficulty">{r.difficulty || 'Medium'}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {results.length === 0 && <div className="results-empty">No runs yet</div>}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* FOOTER: Flow Inspector */}
+                        <div className="dashboard-footer">
+                            <FlowInspector events={traceEvents} results={results} />
+                        </div>
+
                     </div>
+
                 ) : activeTab === 'creator' ? (
                     /* --- CREATOR VIEW --- */
                     <div className="creator-view">

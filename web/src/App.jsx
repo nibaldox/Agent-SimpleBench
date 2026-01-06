@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BenchmarkDashboard } from './components/BenchmarkDashboard';
 import { ChatInterface } from './components/ChatInterface';
-import { Activity, MessageSquare, Sparkles, Moon, Sun, Globe } from 'lucide-react';
+import { Activity, MessageSquare, Sparkles, Moon, Sun, Globe, BarChart3 } from 'lucide-react';
 import './modern.css';
 
 function App() {
@@ -73,6 +73,13 @@ function App() {
               <Sparkles className="tab-icon" size={16} />
               <span>Test Creator</span>
             </button>
+            <button
+              className={`nav-tab ${activeTab === 'compare' ? 'active' : ''}`}
+              onClick={() => setActiveTab('compare')}
+            >
+              <BarChart3 className="tab-icon" size={16} />
+              <span>Compare</span>
+            </button>
           </nav>
         </div>
 
@@ -118,7 +125,7 @@ function App() {
             <ChatInterface language={language} />
           ) : (
             <BenchmarkDashboard
-              initialTab={activeTab === 'creator' ? 'creator' : 'dashboard'}
+              initialTab={activeTab === 'creator' ? 'creator' : activeTab === 'compare' ? 'compare' : 'dashboard'}
               language={language}
             />
           )}

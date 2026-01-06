@@ -1,0 +1,104 @@
+/* Interactive Chart Component Styles */
+.interactive-chart-card {
+    background-color: var(--bg-secondary);
+    /* Dark background */
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 0;
+    /* Padding inside card-content */
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    margin-bottom: 20px;
+    height: 100%;
+}
+
+.chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.chart-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.chart-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.chart-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.chart-select {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.2s;
+}
+
+.chart-select:hover {
+    border-color: var(--accent-primary);
+}
+
+.chart-content {
+    padding: 1.5rem;
+    flex: 1;
+    min-height: 300px;
+}
+
+/* Tooltip Customization */
+.custom-tooltip {
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    min-width: 150px;
+}
+
+.tooltip-date {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    display: block;
+    font-weight: 500;
+}
+
+.tooltip-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    margin-bottom: 4px;
+    color: var(--text-primary);
+}
+
+.tooltip-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.tooltip-value {
+    margin-left: auto;
+    font-weight: 600;
+    font-family: monospace;
+}
